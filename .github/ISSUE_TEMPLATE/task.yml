@@ -1,0 +1,22 @@
+name: Task
+description: A piece of work someone will pick up
+labels: ["task"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options: [core-api, gateway, ai-service, web, student-dashboard, first-aid-ui, futa-web, security, devops, docs]
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What needs to be done
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Done when
+      placeholder: "- [ ] ..."

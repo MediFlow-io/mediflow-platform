@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Staff Account - FUTA Hospital Management System</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body class="auth-page">
+  <header class="topbar">
+    <h2>FUTA Hospital Management System</h2>
+    <a href="index.html">Home</a>
+  </header>
+
+  <main class="auth-container">
+    <form id="registerForm" class="form-card" autocomplete="off">
+      <h1>Create staff account</h1>
+      <p class="muted">Use a unique staff ID and a strong password.</p>
+      <div id="message" class="message" role="alert" aria-live="polite"></div>
+
+      <label for="staffId">Staff ID</label>
+      <input type="text" id="staffId" maxlength="64" autocomplete="username" required>
+
+      <label for="password">Password</label>
+      <input type="password" id="password" minlength="12" autocomplete="new-password" required>
+
+      <label for="confirmPassword">Confirm password</label>
+      <input type="password" id="confirmPassword" minlength="12" autocomplete="new-password" required>
+
+      <button class="button full-width" type="submit">Create account</button>
+      <p class="demo-login"><a href="login.html">Already have an account? Sign in</a></p>
+    </form>
+  </main>
+
+  <footer>&copy; 2026 FUTA Hospital Management System</footer>
+
+  <script src="account-validation.js"></script>
+  <script src="js/register.js"></script>
+</body>
+</html>

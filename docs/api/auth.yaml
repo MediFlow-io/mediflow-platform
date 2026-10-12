@@ -1,0 +1,138 @@
+openapi: 3.0.3
+info:
+  title: MediFlow Core — Authentication
+  version: "1.0"
+  description: |
+    Django issues RS256 JWTs. Other services verify them with the public key from
+    GET /api/auth/jwks and must check: alg=RS256, iss=mediflow-core, aud=mediflow,
+    token_type=access, exp. Sessions remain supported for the legacy FUTA frontend.
+
+    Access token claims: user_id (string), role, name, token_type, jti, iat, exp, iss, aud.
+    Roles: admin, doctor, nurse, reception, lab, pharmacy, it, student.
+paths:
+  /api/auth/login:
+    post:
+      summary: Log in (also aliased at /api/login)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                unique_id: {type: string, description: "Also accepted as staffId, username or email."}
+                password: {type: string}
+      responses:
+        "200":
+          description: User profile plus a token pair
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: "#/components/schemas/User"
+                  - $ref: "#/components/schemas/TokenPair"
+        "401": {$ref: "#/components/responses/Error"}
+  /api/auth/token/refresh:
+    post:
+      summary: Rotate a refresh token. The presented token is revoked; reuse returns 401.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, required: [refresh], properties: {refresh: {type: string}}}
+      responses:
+        "200": {description: New pair, content: {application/json: {schema: {$ref: "#/components/schemas/TokenPair"}}}}
+        "401": {$ref: "#/components/responses/Error"}
+  /api/auth/logout:
+    post:
+      summary: Revoke the given refresh token and end any session. No access token required.
+      requestBody:
+        content:
+          application/json:
+            schema: {type: object, properties: {refresh: {type: string}}}
+      responses:
+        "200": {description: Logged out}
+  /api/auth/change-password:
+    post:
+      summary: Change own password. Revokes all refresh tokens and returns a new pair.
+      security: [{bearer: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [old_password, new_password]
+              properties:
+                old_password: {type: string}
+                new_password: {type: string}
+                confirm_password: {type: string}
+      responses:
+        "200": {description: Changed, content: {application/json: {schema: {$ref: "#/components/schemas/TokenPair"}}}}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+  /api/auth/register/student:
+    post:
+      summary: Public student self-registration (role is always student)
+      responses:
+        "201": {description: Created}
+        "400": {$ref: "#/components/responses/Error"}
+  /api/auth/register/staff:
+    post:
+      summary: Admin creates a staff account. Role must be a staff role (not student).
+      security: [{bearer: []}]
+      responses:
+        "201": {description: Created}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+  /api/register:
+    post:
+      summary: Legacy public registration. Any client-supplied role is ignored; accounts get reception.
+      responses:
+        "201": {description: Created}
+  /api/auth/jwks:
+    get:
+      summary: Public verifying keys (also at /.well-known/jwks.json)
+      security: []
+      responses:
+        "200":
+          description: JWK set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  keys:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        kty: {type: string, example: RSA}
+                        alg: {type: string, example: RS256}
+                        kid: {type: string}
+                        n: {type: string}
+                        e: {type: string}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+  responses:
+    Error:
+      description: Error
+      content:
+        application/json:
+          schema: {type: object, properties: {detail: {type: string}}}
+  schemas:
+    TokenPair:
+      type: object
+      properties:
+        access: {type: string, description: "RS256 JWT, 10 minutes by default"}
+        refresh: {type: string, description: "Single-use, 7 days by default"}
+        token: {type: string, description: "Deprecated alias of access"}
+    User:
+      type: object
+      properties:
+        id: {type: integer}
+        unique_id: {type: string}
+        staffId: {type: string}
+        name: {type: string}
+        email: {type: string}
+        role: {type: string}

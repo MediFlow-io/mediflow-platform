@@ -1,0 +1,106 @@
+project: MediFlow
+documentation_status: current-checkout
+version: "1.1"
+last_reviewed: "2026-09-14"
+owners:
+  documentation: "MediFlow maintainers"
+  frontend: "Frontend team"
+  backend: "Backend team"
+  ai: "AI/integration team"
+repository_scope:
+  frontend: "FE/FUTA Health Centre Project"
+  backend: "FE/FUTA Health Centre Project/server.js"
+  ai: "Built-in rule-based responder behind POST /api/ai/ask"
+  future_services:
+    - Django core backend
+    - Go queue engine
+    - Flask notifications
+    - FastAPI AI inference
+    - Laravel operations and reporting
+    status: not_present_in_this_checkout
+
+runtime:
+  command: "cd FE/FUTA Health Centre Project && npm start"
+  default_url: "http://localhost:3000"
+  static_files_and_api: same_node_server
+  storage:
+    users: "FE/FUTA Health Centre Project/data/users.json"
+    patients: "FE/FUTA Health Centre Project/data/patients.json"
+  limitations:
+    - in_memory_sessions
+    - local_json_storage
+    - single_process
+    - no_external_ai_provider
+
+browser_flows:
+  public:
+    - index.html
+    - login.html
+    - register.html
+  authenticated:
+    - dashboard.html
+    - patient-form.html
+    - admin-users.html
+  guards:
+    session: auth-guard.js
+    admin: admin-guard.js
+  ai:
+    inline: ai-assistant.js
+    notification_widget: ai-widget.js
+
+api:
+  session:
+    - "POST /api/login"
+    - "POST /api/logout"
+    - "GET /api/session"
+  accounts:
+    - "POST /api/register"
+    - "POST /api/admin/users"
+  ai:
+    - "POST /api/ai/ask"
+  patients:
+    - "GET /api/patients?search="
+    - "GET /api/patients/:id"
+    - "POST /api/patients"
+    - "PUT /api/patients/:id"
+    - "DELETE /api/patients/:id"
+  conventions:
+    content_type: "application/json"
+    error_shape: '{ "message": "..." }'
+    auth_status: 401
+    authorization_status: 403
+    validation_status: 400
+
+security:
+  password_storage: "PBKDF2 hashes"
+  session: "HTTP-only cookie, eight-hour in-memory session"
+  production_required:
+    - HTTPS
+    - durable session store
+    - database and migrations
+    - rate limiting
+    - audit logging with redaction
+    - backup and recovery
+    - privacy/compliance review
+
+documentation:
+  index: MEDIFLOW-DOCS.md
+  frontend: FRONTEND.md
+  backend: BACKEND.md
+  ai: AI.md
+  development: DEVELOPMENT.md
+  security: SECURITY.md
+  operations: OPERATIONS.md
+  checklist: CHANGE-CHECKLIST.md
+  data_model: DATA-MODEL.md
+  api_examples: API-EXAMPLES.md
+  testing: TESTING.md
+  glossary: GLOSSARY.md
+  decisions: decisions/README.md
+
+change_rules:
+  - Keep browser API paths relative to /api.
+  - Enforce authorization on the server.
+  - Validate all request bodies.
+  - Never commit secrets or real patient data.
+  - Update this file when routes or service boundaries change.

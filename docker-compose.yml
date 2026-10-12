@@ -1,0 +1,72 @@
+# Full MediFlow stack: `docker compose up --build`, then open http://localhost:8080
+# Every value has a development default. Override any of them in a .env file next to
+# this one (see .env.example). Defaults are for local development ONLY.
+name: mediflow
+
+x-ai-token: &ai-token ${AI_SERVICE_TOKEN:-mediflow-dev-internal-token}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mediflow}
+      POSTGRES_USER: ${POSTGRES_USER:-mediflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediflow-dev-only}
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./apps/core-api
+    environment:
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-unsafe-development-key-change-me}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:8080}
+      POSTGRES_DB: ${POSTGRES_DB:-mediflow}
+      POSTGRES_USER: ${POSTGRES_USER:-mediflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediflow-dev-only}
+      POSTGRES_HOST: db
+      AI_SERVICE_URL: http://ai:8001
+      AI_SERVICE_TOKEN: *ai-token
+      SEED_DEMO: ${SEED_DEMO:-true}
+    # Migrate, optionally seed demo data (dev only), then serve.
+    command: >
+      sh -c "python manage.py migrate --noinput &&
+             if [ \"$$SEED_DEMO\" = true ]; then python manage.py seed_demo; fi &&
+             exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --access-logfile -"
+    volumes:
+      - jwt_keys:/app/.keys   # keeps the dev signing key across restarts so users stay logged in
+    depends_on:
+      db: {condition: service_healthy}
+
+  ai:
+    build: ./apps/ai-service
+    environment:
+      AI_ENV: ${AI_ENV:-development}
+      AI_SERVICE_TOKEN: *ai-token
+      EMERGENCY_NUMBER: ${EMERGENCY_NUMBER:-112}
+    # No published port: only the api service may reach it.
+
+  gateway:
+    build: ./apps/gateway
+    environment:
+      DJANGO_BASE_URL: http://api:8000
+      ALLOWED_ORIGIN: http://localhost:${WEB_PORT:-8080}
+    depends_on:
+      api: {condition: service_healthy}
+
+  web:
+    build: ./apps/web
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      api: {condition: service_healthy}
+      gateway: {condition: service_healthy}
+
+volumes:
+  postgres_data:
+  jwt_keys:

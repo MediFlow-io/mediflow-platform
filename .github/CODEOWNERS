@@ -1,0 +1,24 @@
+# Every PR requests review from the maintainer; area owners are added from .github/team.toml.
+# Code-owner approval is NOT required. Only the maintainer can merge (branch protection).
+
+*  @gifted-g1
+/apps/core-api/  @gifted-g1 @payemuibile
+/apps/gateway/  @gifted-g1
+/apps/ai-service/  @gifted-g1
+/apps/web/  @gifted-g1
+/apps/student-dashboard/  @gifted-g1 @mnlwayomide-tech
+/apps/first-aid-ui/  @gifted-g1 @DevJustinTech
+/apps/futa-web/  @gifted-g1 @david296-gif
+/apps/core-api/apps/accounts/  @gifted-g1 @david296-gif
+/apps/gateway/jwt.go  @gifted-g1 @david296-gif
+/incoming/security-module/  @gifted-g1 @david296-gif
+/docker-compose.yml  @gifted-g1 @LadyG4
+/.github/workflows/  @gifted-g1 @LadyG4
+/apps/web/Dockerfile  @gifted-g1 @LadyG4
+/apps/web/nginx.conf  @gifted-g1 @LadyG4
+/apps/core-api/Dockerfile  @gifted-g1 @LadyG4
+/apps/gateway/Dockerfile  @gifted-g1 @LadyG4
+/apps/ai-service/Dockerfile  @gifted-g1 @LadyG4
+/docs/  @gifted-g1 @david296-gif
+/README.md  @gifted-g1 @david296-gif
+/CONTRIBUTING.md  @gifted-g1 @david296-gif

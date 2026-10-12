@@ -1,0 +1,434 @@
+:root {
+  --bg: #f3f8f4;
+  --surface: #ffffff;
+  --surface-alt: #e8f3e9;
+  --text: #173d36;
+  --muted: #6b7d8c;
+  --heading: #07583f;
+  --primary: #08786d;
+  --primary-dark: #07583f;
+  --primary-soft: rgba(8, 120, 109, 0.16);
+  --border: #c5d3dc;
+  --shadow: rgba(0, 0, 0, 0.08);
+  --search-bg: #ffffff;
+  --table-border: #e5edf1;
+  --hero-bg: linear-gradient(135deg, rgba(231, 247, 239, 0.94), rgba(255, 253, 246, 0.88));
+  --button-secondary: #7b3548;
+}
+
+body[data-theme="dark"] {
+  --bg: #0d1717;
+  --surface: #1a2a2b;
+  --surface-alt: #1d3535;
+  --text: #edf7f4;
+  --muted: #a8c3bf;
+  --heading: #d9fff5;
+  --primary: #4ecfb1;
+  --primary-dark: #22b69c;
+  --primary-soft: rgba(78, 207, 177, 0.2);
+  --border: #314a49;
+  --shadow: rgba(0, 0, 0, 0.35);
+  --search-bg: #132221;
+  --table-border: #2d3d3c;
+  --hero-bg: linear-gradient(135deg, rgba(16, 40, 38, 0.94), rgba(19, 31, 31, 0.96));
+  --button-secondary: #d98ca3;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  position: relative;
+  isolation: isolate;
+  font-family: Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+/* A subtle, fixed crest keeps the FUTA identity visible without affecting readability. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("second futa logo.jpg") center / min(48vw, 430px) no-repeat;
+  opacity: 0.075;
+}
+
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+.topbar {
+  background: linear-gradient(110deg, #07583f, #08786d 62%, #0b5d57);
+  color: white;
+  padding: 12px 6%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.theme-toggle .theme-icon {
+  font-size: 16px;
+}
+
+.topbar h2 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.futa-header-logo {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  border-radius: 50%;
+  background: white;
+  padding: 3px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+  order: 3;
+}
+
+.topbar a {
+  color: white;
+  text-decoration: none;
+  margin-left: 15px;
+  font-weight: bold;
+}
+
+.topbar a:hover {
+  text-decoration: underline;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.hero {
+  min-height: 520px;
+  padding: 80px 8%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  background: var(--hero-bg);
+}
+
+.hero section {
+  max-width: 620px;
+}
+
+.hero h1 {
+  color: var(--heading);
+  font-size: 42px;
+  margin-bottom: 20px;
+}
+
+.hero p {
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1.7;
+  margin-bottom: 25px;
+}
+
+.hero-card {
+  background: var(--surface);
+  padding: 35px;
+  max-width: 350px;
+  text-align: center;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px var(--shadow);
+}
+
+.hospital-icon {
+  font-size: 60px;
+}
+
+.button {
+  display: inline-block;
+  border: none;
+  border-radius: 6px;
+  padding: 12px 20px;
+  background: var(--primary);
+  color: white;
+  font-size: 15px;
+  font-weight: bold;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button:hover {
+  background: var(--primary-dark);
+}
+
+.button.secondary {
+  background: var(--button-secondary);
+}
+
+.container {
+  width: 88%;
+  max-width: 1250px;
+  margin: 35px auto;
+}
+
+.page-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 25px;
+}
+
+.page-heading h1 {
+  margin-bottom: 5px;
+  color: var(--heading);
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.form-card {
+  width: 100%;
+  max-width: 450px;
+  background: var(--surface);
+  padding: 30px;
+  border-radius: 10px;
+  box-shadow: 0 5px 20px var(--shadow);
+}
+
+.wide-form {
+  max-width: 900px;
+  margin: auto;
+}
+
+.form-card h1,
+.form-card h2 {
+  color: var(--heading);
+}
+
+.form-card h2 {
+  margin-top: 25px;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+
+.form-card h2:first-of-type {
+  margin-top: 0;
+}
+
+.form-card label {
+  display: block;
+  margin-top: 16px;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+
+.form-card input,
+.form-card select,
+.form-card textarea,
+.search-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 15px;
+  font-family: inherit;
+  background: var(--search-bg);
+  color: var(--text);
+}
+
+.form-card textarea {
+  resize: vertical;
+}
+
+.form-card input:focus,
+.form-card select:focus,
+.form-card textarea:focus,
+.search-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.form-grid label {
+  margin-top: 0;
+}
+
+.full-width {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.auth-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.auth-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.demo-login {
+  margin-top: 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.message {
+  min-height: 22px;
+  margin: 12px 0;
+  font-weight: bold;
+}
+
+.message.success {
+  color: #16803c;
+}
+
+.message.error {
+  color: #b42318;
+}
+
+.search-input {
+  max-width: 500px;
+  margin-bottom: 20px;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  background: var(--surface);
+  border-radius: 8px;
+  box-shadow: 0 4px 15px var(--shadow);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 850px;
+}
+
+th,
+td {
+  padding: 14px;
+  text-align: left;
+  border-bottom: 1px solid var(--table-border);
+}
+
+th {
+  background: var(--surface-alt);
+  color: var(--heading);
+}
+
+.small-button {
+  display: inline-block;
+  border: none;
+  border-radius: 4px;
+  padding: 7px 10px;
+  background: var(--primary);
+  color: white;
+  text-decoration: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.small-button.danger {
+  background: #c0392b;
+}
+
+.empty {
+  text-align: center;
+  color: var(--muted);
+}
+
+.logout-button {
+  border: none;
+  background: transparent;
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  font-size: 15px;
+}
+
+footer {
+  padding: 20px;
+  background: #07583f;
+  color: white;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .topbar,
+  .page-heading {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .futa-header-logo {
+    align-self: flex-end;
+  }
+
+  nav {
+    flex-wrap: wrap;
+  }
+
+  .hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 55px 6%;
+  }
+
+  .hero h1 {
+    font-size: 32px;
+  }
+
+  .hero-card {
+    width: 100%;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .container {
+    width: 94%;
+  }
+}

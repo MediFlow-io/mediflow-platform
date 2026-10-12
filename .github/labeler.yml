@@ -1,0 +1,52 @@
+# Generated from .github/team.toml areas: keep the two in sync.
+
+'area: core-api':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/core-api/**'
+'area: gateway':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/gateway/**'
+'area: ai-service':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/ai-service/**'
+'area: web':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/web/**'
+'area: student-dashboard':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/student-dashboard/**'
+'area: first-aid-ui':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/first-aid-ui/**'
+'area: futa-web':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/futa-web/**'
+'area: security':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/core-api/apps/accounts/**'
+          - 'apps/gateway/jwt.go'
+          - 'incoming/security-module/**'
+'area: devops':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docker-compose.yml'
+          - '.github/workflows/**'
+          - 'apps/web/Dockerfile'
+          - 'apps/web/nginx.conf'
+          - 'apps/core-api/Dockerfile'
+          - 'apps/gateway/Dockerfile'
+          - 'apps/ai-service/Dockerfile'
+'area: docs':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'docs/**'
+          - 'README.md'
+          - 'CONTRIBUTING.md'

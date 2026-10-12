@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - FUTA Hospital Management System</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body>
+  <script src="homepage.js"></script>
+
+  <header class="topbar">
+    <h2>FUTA Hospital Management System</h2>
+
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="patient-form.html">Register Patient</a>
+      <button type="button" class="theme-toggle" aria-label="Toggle dark mode">
+        <span class="theme-icon" aria-hidden="true">🌙</span>
+        <span class="theme-text">Dark mode</span>
+      </button>
+      <button id="logoutButton" class="logout-button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="page-heading">
+      <div>
+        <h1>Patient Records</h1>
+        <p class="muted">Search, view, and update patient information.</p>
+      </div>
+
+      <a href="patient-form.html" class="button">+ Register Patient</a>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <input
+      type="search"
+      id="searchInput"
+      class="search-input"
+      placeholder="Search by name, hospital number, phone, or sex"
+    >
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Hospital Number</th>
+            <th>Full Name</th>
+            <th>Sex</th>
+            <th>Phone</th>
+            <th>Diagnosis</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody id="patientTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="auth-guard.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

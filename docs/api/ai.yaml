@@ -1,0 +1,94 @@
+openapi: 3.0.3
+info:
+  title: MediFlow Core — AI decision support (browser-facing)
+  version: "1.0"
+  description: |
+    Served by Django, which authenticates the user, checks the role, rate-limits
+    (AI_RATE_LIMIT, default 30/min per user), audits, and calls the internal FastAPI
+    service. On failure the API returns 503. It never returns an invented answer.
+    Decision support only: nothing here changes a visit or a patient's ESI level.
+paths:
+  /api/ai/ask:
+    post:
+      summary: General first-aid question (any signed-in user, including students)
+      security: [{bearer: []}, {session: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [question]
+              properties:
+                question: {type: string, minLength: 1, maxLength: 500}
+      responses:
+        "200":
+          description: Answer
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answer: {type: string}
+                  topic: {type: string, example: burn}
+                  emergency: {type: boolean, description: "true when the answer starts with emergency escalation"}
+                  source: {type: string, example: built-in-rules}
+                  disclaimer: {type: string}
+        "400": {description: Invalid question}
+        "401": {description: Not signed in}
+        "429": {description: Rate limited}
+        "503": {description: AI service unavailable}
+  /api/ai/triage:
+    post:
+      summary: ESI suggestion for clinical staff (nurse, doctor, admin)
+      description: Only the fields below are forwarded. Names and record IDs never leave the core API.
+      security: [{bearer: []}, {session: []}]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                chief_complaint: {type: string, maxLength: 500}
+                age_years: {type: number, minimum: 0, maximum: 130}
+                pain_score: {type: integer, minimum: 0, maximum: 10}
+                vitals:
+                  type: object
+                  properties:
+                    heart_rate: {type: integer}
+                    resp_rate: {type: integer}
+                    spo2: {type: integer}
+                    temperature_c: {type: number}
+                    systolic_bp: {type: integer}
+                    avpu: {type: string, enum: [A, V, P, U]}
+      responses:
+        "200":
+          description: Suggestion
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  suggested_esi: {type: integer, minimum: 1, maximum: 5}
+                  risk_level: {type: string, enum: [CRITICAL, HIGH, MEDIUM, LOW]}
+                  reasons: {type: array, items: {type: string}}
+                  recommendation: {type: string}
+                  missing_vitals: {type: array, items: {type: string}}
+                  requires_clinician_review: {type: boolean, enum: [true]}
+                  method: {type: string, example: rules}
+                  model_version: {type: string, example: rules-esi-2026.10}
+                  disclaimer: {type: string}
+        "400": {description: Invalid input}
+        "401": {description: Not signed in}
+        "403": {description: Role not allowed}
+        "503": {description: AI service unavailable}
+  /api/health:
+    get:
+      summary: Liveness + database check (public, no sensitive data)
+      security: []
+      responses:
+        "200": {description: "{\"status\": \"ok\"}"}
+        "503": {description: Database unreachable}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+    session: {type: apiKey, in: cookie, name: sessionid}

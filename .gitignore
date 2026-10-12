@@ -1,0 +1,19 @@
+# Secrets and local state
+.env
+.keys/
+*.pem
+db.sqlite3
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+staticfiles/
+
+# Node / Vite
+node_modules/
+dist/
+
+# Go
+apps/gateway/gateway
+apps/gateway/*.exe

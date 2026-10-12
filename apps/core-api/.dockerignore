@@ -1,0 +1,10 @@
+# Never bake secrets or local state into the image
+.env
+.keys/
+*.pem
+db.sqlite3
+.git/
+.venv/
+__pycache__/
+node_modules/
+dist/

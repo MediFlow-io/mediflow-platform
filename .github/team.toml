@@ -1,0 +1,115 @@
+# MediFlow team: who owns which part of the repo, and what each person is working on.
+#
+# scripts/team_status.py reads this file and posts a daily status report (see the
+# "Team status" issue). To change your task, edit your entry and open a PR.
+#
+#   areas  = parts of the repo you're responsible for (keys of [areas] below)
+#   task   = what you're working on right now, in one line
+#   issues = GitHub issue numbers for that task (optional)
+
+maintainer = "gifted-g1"   # the only person who can merge to main
+stale_days = 7             # flag people with no activity for this many days
+pr_wait_days = 3           # flag PRs waiting this long
+
+# --- Areas: each maps to folders. PRs are labelled and attributed by these paths. ---
+[areas.core-api]
+title = "Core API (Django)"
+paths = ["apps/core-api/"]
+
+[areas.gateway]
+title = "Auth gateway (Go)"
+paths = ["apps/gateway/"]
+
+[areas.ai-service]
+title = "AI service (FastAPI)"
+paths = ["apps/ai-service/"]
+
+[areas.web]
+title = "Web client (React)"
+paths = ["apps/web/"]
+
+[areas.student-dashboard]
+title = "Student dashboard (React)"
+paths = ["apps/student-dashboard/"]
+
+[areas.first-aid-ui]
+title = "First-aid UI (React)"
+paths = ["apps/first-aid-ui/"]
+
+[areas.futa-web]
+title = "FUTA staff frontend (legacy JS)"
+paths = ["apps/futa-web/"]
+
+[areas.security]
+title = "Security"
+paths = ["apps/core-api/apps/accounts/", "apps/gateway/jwt.go", "incoming/security-module/"]
+
+[areas.devops]
+title = "DevOps & CI"
+paths = ["docker-compose.yml", ".github/workflows/", "apps/web/Dockerfile", "apps/web/nginx.conf",
+         "apps/core-api/Dockerfile", "apps/gateway/Dockerfile", "apps/ai-service/Dockerfile"]
+
+[areas.docs]
+title = "Documentation"
+paths = ["docs/", "README.md", "CONTRIBUTING.md"]
+
+# --- Members. Areas and tasks marked "inferred" came from past commits: please confirm. ---
+[[member]]
+github = "gifted-g1"
+role = "Project lead & maintainer"
+areas = ["core-api", "gateway", "ai-service", "web", "devops"]
+task = "Monorepo migration, auth (JWT/RBAC) and AI service"
+
+[[member]]
+github = "david296-gif"
+role = "Frontend & security (inferred)"
+areas = ["futa-web", "security", "docs"]
+task = "Integrate the security module and FUTA frontend features (branches migrated from old repos)"
+
+[[member]]
+github = "mnlwayomide-tech"
+role = "Frontend (inferred)"
+areas = ["student-dashboard"]
+task = "Student dashboard (migrated from MediFlow-FE PR #2)"
+
+[[member]]
+github = "LadyG4"
+role = "DevOps (inferred)"
+areas = ["devops"]
+task = "Docker setup (migrated from MediFlow-DevOps PR #1): reconcile with the root docker-compose.yml"
+
+[[member]]
+github = "payemuibile"
+role = "Backend (inferred)"
+areas = ["core-api"]
+task = "Authentication system (migrated from MediFlow-BE): merge useful parts into apps/core-api"
+
+[[member]]
+github = "DevJustinTech"
+role = "AI / frontend (inferred)"
+areas = ["first-aid-ui"]
+task = "First-aid UI"
+
+[[member]]
+github = "eaakinbodewa"
+role = ""
+areas = []
+task = ""
+
+[[member]]
+github = "Iyanuoluwa55"
+role = ""
+areas = []
+task = ""
+
+[[member]]
+github = "jesulewami-kupoluyi"
+role = ""
+areas = []
+task = ""
+
+[[member]]
+github = "vector026-code"
+role = ""
+areas = []
+task = ""

@@ -1,0 +1,39 @@
+name: Team status
+
+# Keeps the "Team status" issue up to date: who is working on what, and what needs attention.
+on:
+  schedule:
+    - cron: "0 7 * * 1-5"   # 08:00 Lagos time, Monday to Friday
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: [".github/team.toml"]
+  pull_request:
+    types: [opened, reopened, closed, ready_for_review]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+  checks: read
+
+concurrency:
+  group: team-status
+  cancel-in-progress: false
+
+jobs:
+  report:
+    # PRs from forks get a read-only token and cannot update the issue.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Update the Team status issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/team_status.py --update-issue
