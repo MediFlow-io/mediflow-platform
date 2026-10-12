@@ -85,7 +85,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [web, first-aid-ui]
+        app: [web, first-aid-ui, student-dashboard]
     defaults:
       run:
         working-directory: apps/${{ matrix.app }}
