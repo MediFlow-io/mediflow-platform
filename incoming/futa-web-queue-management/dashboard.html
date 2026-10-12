@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Queue overview - MediFlow</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body class="app-shell">
+  <script src="homepage.js"></script>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">+</span>
+      <div>
+        <strong>MediFlow</strong>
+        <span>FUTA Health Centre</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span class="live-status"><span class="live-dot"></span>Live queue</span>
+      <span class="staff-name">Dr. A. Oladele <small>Clinician</small></span>
+      <button id="logoutButton" class="logout-button" type="button">Log out</button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <nav>
+        <a class="nav-item active" href="dashboard.html"><span>▦</span> Queue overview</a>
+        <a class="nav-item" id="registerLink" href="patient-form.html"><span>＋</span> Register patient</a>
+        <a class="nav-item" href="#"><span>◷</span> Appointments</a>
+        <a class="nav-item" href="patient-records.html"><span>▤</span> Patient records</a>
+        <a class="nav-item" id="userMgmtLink" href="user-management.html" style="display:none"><span>⚙</span> User management</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="help-icon">?</span>
+        <div><strong>Need help?</strong><small>Contact IT support</small></div>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <div class="page-heading dashboard-heading">
+        <div>
+          <p class="eyebrow">Wednesday, 02 September 2026</p>
+          <h1>Good morning, Dr. Oladele</h1>
+          <p class="muted">Here is the latest patient flow across your department.</p>
+        </div>
+        <a href="patient-form.html" class="button"><span>＋</span> Register patient</a>
+      </div>
+
+      <div id="message" class="message" role="status"></div>
+
+      <section class="stats-grid" aria-label="Today's overview">
+        <article class="stat-card">
+          <div class="stat-icon blue">♙</div>
+          <div><span class="stat-label">Patients today</span><strong id="patientsToday">24</strong><small class="trend up">↑ 12% <em>vs yesterday</em></small></div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon amber">◷</div>
+          <div><span class="stat-label">Currently waiting</span><strong id="waitingCount">8</strong><small class="trend">Avg. wait <em>18 min</em></small></div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon red">♥</div>
+          <div><span class="stat-label">Urgent cases</span><strong id="urgentCount">2</strong><small class="trend red-text">Needs attention</small></div>
+        </article>
+        <article class="stat-card">
+          <div class="stat-icon green">✓</div>
+          <div><span class="stat-label">Doctors available</span><strong>4<span class="stat-total">/ 6</span></strong><small class="trend">In consultation</small></div>
+        </article>
+      </section>
+
+      <section class="queue-panel">
+        <div class="section-heading">
+          <div><h2>Patient queue</h2><p class="muted">Priority is based on triage severity, then arrival time.</p></div>
+          <button class="refresh-button" id="refreshQueue" type="button">↻ Refresh</button>
+        </div>
+        <div class="queue-toolbar">
+          <label class="search-wrap" for="searchInput"><span>⌕</span><input type="search" id="searchInput" placeholder="Search patient or queue number"></label>
+          <label class="filter-wrap" for="priorityFilter">Show <select id="priorityFilter"><option value="all">All patients</option><option value="urgent">Urgent only</option><option value="waiting">Waiting only</option></select></label>
+        </div>
+        <div class="table-wrapper queue-table-wrapper">
+          <table>
+            <thead><tr><th>Patient</th><th>Queue no.</th><th>Priority</th><th>Arrival time</th><th>Est. wait</th><th>Status</th><th><span class="sr-only">Actions</span></th></tr></thead>
+            <tbody id="patientTableBody"></tbody>
+          </table>
+        </div>
+        <div class="queue-legend"><span><i class="legend-dot urgent-dot"></i>Urgent: ESI 1–2</span><span><i class="legend-dot standard-dot"></i>Standard: ESI 3–5</span><span class="queue-updated">Last updated just now</span></div>
+      </section>
+    </main>
+  </div>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>
