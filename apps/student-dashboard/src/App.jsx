@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Plus, X, Check, ShieldAlert, Phone } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info } from "lucide-react";
+import { getMe, getMyHealth, isSignedIn, signIn, signOut } from "./api";
 
 // Mediflow palette
 const C = {
@@ -11,45 +12,14 @@ const C = {
   line: "#D9E2EF",
 };
 
-// ---- Sample data: replace with your Mediflow API ----
-const student = { name: "Amara Okafor", id: "STU-2041", grade: "Grade 10B", blood: "O+", guardian: "Mrs. Ngozi Okafor", phone: "+234 803 555 0142" };
+// Stages a visit really goes through in MediFlow (see the core API's visit lifecycle).
+const journey = ["Checked in", "Called", "With clinician", "Done"];
+const stageOf = { waiting: 0, called: 1, in_progress: 2 };
+const STATUS_LABEL = { waiting: "Waiting", called: "Called", in_progress: "With clinician", completed: "Completed", cancelled: "Cancelled" };
+const REFRESH_MS = 20000;
 
-const journey = ["Checked in", "Nurse triage", "Doctor", "Pharmacy", "Cleared"];
-const currentStage = 2; // 0-based index; -1 means no active visit
-
-const vitals = [
-  { label: "Heart rate", unit: "bpm", value: 78, trend: [74, 80, 76, 82, 79, 77, 78] },
-  { label: "Temperature", unit: "°C", value: 36.8, trend: [36.6, 36.9, 36.7, 37.1, 36.8, 36.7, 36.8] },
-  { label: "Weight", unit: "kg", value: 52, trend: [50.5, 50.8, 51, 51.2, 51.5, 51.8, 52] },
-];
-
-const seedAppts = [
-  { id: 1, date: "2026-09-29", time: "10:30", reason: "Asthma review", staff: "Dr. Bello", status: "Confirmed" },
-  { id: 2, date: "2026-10-08", time: "09:00", reason: "Vision screening", staff: "Nurse Adeyemi", status: "Pending" },
-];
-
-const visits = [
-  { date: "2026-09-12", title: "Headache and fatigue", staff: "Nurse Adeyemi", note: "Rested 40 minutes and given paracetamol. Returned to class." },
-  { date: "2026-08-03", title: "Asthma flare-up", staff: "Dr. Bello", note: "Inhaler used on site. Advised to carry it at all times." },
-  { date: "2026-05-19", title: "Ankle sprain", staff: "Nurse Adeyemi", note: "Ice and compression. Excused from PE for one week." },
-];
-
-const vaccines = [
-  { name: "Tetanus booster", when: "Mar 2025", done: true },
-  { name: "Meningitis ACWY", when: "Sep 2024", done: true },
-  { name: "HPV dose 1", when: "Jan 2026", done: true },
-  { name: "HPV dose 2", when: "Due since Jul 2026", done: false },
-];
-
-const meds = [
-  { name: "Salbutamol inhaler", dose: "2 puffs when wheezing", note: "Keep in school bag" },
-  { name: "Cetirizine 10 mg", dose: "Once daily, evening", note: "Seasonal allergies" },
-];
-
-const allergies = ["Penicillin", "Groundnuts"];
-const notices = ["HPV dose 2 is overdue. Book a clinic slot.", "Your 29 Sep appointment is confirmed."];
-
-const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const fmt = (d) => new Date(d).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+const time = (d) => new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 
 const nav = [
   { id: "home", label: "Today", icon: LayoutGrid },
@@ -64,22 +34,11 @@ function Logo({ light }) {
     <div className="flex items-center gap-2">
       <svg width="34" height="22" viewBox="0 0 34 22" fill="none" aria-hidden="true">
         <path d="M1 12 C6 12 6 3 11 3 S16 19 21 19 S26 11 33 11" stroke={C.mint} strokeWidth="3" strokeLinecap="round" />
-        <path d="M1 8 C6 8 6 0 11 0" stroke={C.cobalt} strokeWidth="0" />
       </svg>
       <span className="text-xl font-bold tracking-tight" style={{ color: light ? "#fff" : C.ink }}>
         Medi<span style={{ color: C.mint }}>flow</span>
       </span>
     </div>
-  );
-}
-
-function Spark({ data, color }) {
-  const min = Math.min(...data), max = Math.max(...data), r = max - min || 1;
-  const pts = data.map((v, i) => `${(i / (data.length - 1)) * 100},${28 - ((v - min) / r) * 24}`).join(" ");
-  return (
-    <svg viewBox="0 0 100 32" className="w-full h-8" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-    </svg>
   );
 }
 
@@ -97,17 +56,43 @@ function Card({ title, right, children, className = "" }) {
   );
 }
 
-function CareJourney() {
+function Note({ children }) {
   return (
-    <div className="rounded-3xl p-6 md:p-8 text-white" style={{ background: C.ink }}>
-      <p className="text-sm" style={{ color: "#9DB2D6" }}>Your visit to the clinic today</p>
-      <h2 className="text-2xl md:text-3xl font-bold mt-1">
-        {currentStage >= 0 ? `You're with ${journey[currentStage] === "Doctor" ? "the doctor" : journey[currentStage].toLowerCase()} now` : "No active visit"}
-      </h2>
-      {currentStage >= 0 && (
+    <div className="flex gap-3 rounded-2xl p-4 text-sm" style={{ background: C.mist, color: "#2A3B57" }}>
+      <Info size={18} className="shrink-0 mt-0.5" color={C.cobalt} />
+      <div>{children}</div>
+    </div>
+  );
+}
+
+function CareJourney({ visit }) {
+  const stage = visit ? stageOf[visit.status] : -1;
+  let headline = "No active visit";
+  let detail = "Walk in to the health centre and reception will check you in. You can then follow your place here.";
+  if (visit?.status === "waiting") {
+    headline = "You're in the queue";
+    detail = visit.patientsAhead === 0
+      ? `You're next in ${visit.department}. Please stay nearby.`
+      : `${visit.patientsAhead} ${visit.patientsAhead === 1 ? "person is" : "people are"} ahead of you in ${visit.department}. More urgent cases are seen first.`;
+  } else if (visit?.status === "called") {
+    headline = "You've been called";
+    detail = `Please go to ${visit.department} now.`;
+  } else if (visit?.status === "in_progress") {
+    headline = "You're with the clinician now";
+    detail = `${visit.department} · since ${time(visit.startedAt)}`;
+  }
+
+  return (
+    <div className="rounded-3xl p-6 md:p-8 text-white" style={{ background: C.ink }} aria-live="polite">
+      <p className="text-sm" style={{ color: "#9DB2D6" }}>
+        Your visit to the clinic today{visit ? ` · checked in ${time(visit.checkedInAt)}` : ""}
+      </p>
+      <h2 className="text-2xl md:text-3xl font-bold mt-1">{headline}</h2>
+      <p className="text-sm mt-2" style={{ color: "#C8D6EE" }}>{detail}</p>
+      {stage >= 0 && (
         <div className="mt-8 flex items-center">
           {journey.map((step, i) => {
-            const done = i < currentStage, now = i === currentStage;
+            const done = i < stage, now = i === stage;
             return (
               <div key={step} className="flex items-center flex-1 last:flex-none">
                 <div className="flex flex-col items-center gap-2 w-14 md:w-20">
@@ -134,153 +119,155 @@ function CareJourney() {
   );
 }
 
-function Home({ appts, go }) {
-  const next = appts[0];
+const splitList = (text) => (text || "").split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
+
+function Home({ health, go }) {
+  const { patient, activeVisit, visits } = health;
+  const allergies = splitList(patient?.allergies);
+  const last = visits.find((v) => v.status === "completed");
   return (
     <div className="grid gap-5">
-      <CareJourney />
-      <div className="grid gap-5 md:grid-cols-3">
-        {vitals.map((v, i) => (
-          <Card key={v.label}>
-            <div className="text-sm" style={{ color: "#5B6F8F" }}>{v.label}</div>
-            <div className="text-3xl font-bold mt-1" style={{ color: C.ink }}>{v.value}<span className="text-base font-medium ml-1">{v.unit}</span></div>
-            <Spark data={v.trend} color={[C.cobalt, C.coral, C.mint][i]} />
-            <div className="text-xs mt-1" style={{ color: "#5B6F8F" }}>Last 7 readings</div>
-          </Card>
-        ))}
-      </div>
+      <CareJourney visit={activeVisit} />
       <div className="grid gap-5 lg:grid-cols-3">
-        <Card title="Next appointment" right={<button onClick={() => go("appts")} className="text-sm font-semibold" style={{ color: C.cobalt }}>Manage</button>} className="lg:col-span-2">
-          {next ? (
-            <div className="flex items-center gap-4">
-              <div className="rounded-2xl px-4 py-3 text-center" style={{ background: C.mist, color: C.ink }}>
-                <div className="text-2xl font-bold leading-none">{new Date(next.date).getDate()}</div>
-                <div className="text-xs">{new Date(next.date).toLocaleString("en-GB", { month: "short" })}</div>
-              </div>
-              <div>
-                <div className="font-semibold" style={{ color: C.ink }}>{next.reason}</div>
-                <div className="text-sm" style={{ color: "#5B6F8F" }}>{next.time} with {next.staff}</div>
-              </div>
+        <Card title="Your visits" right={<button onClick={() => go("history")} className="text-sm font-semibold" style={{ color: C.cobalt }}>See all</button>} className="lg:col-span-2">
+          <div className="flex items-center gap-6">
+            <div>
+              <div className="text-3xl font-bold" style={{ color: C.ink }}>{visits.length}</div>
+              <div className="text-sm" style={{ color: "#5B6F8F" }}>on record</div>
             </div>
-          ) : <p className="text-sm">Nothing booked. Open Appointments to request a slot.</p>}
+            <div className="text-sm" style={{ color: "#5B6F8F" }}>
+              {last ? <>Last completed visit: <strong style={{ color: C.ink }}>{fmt(last.checkedInAt)}</strong>, {last.department}{last.clinician ? ` with ${last.clinician}` : ""}.</> : "No completed visits yet."}
+            </div>
+          </div>
         </Card>
         <Card title="Safety card">
-          <div className="flex flex-wrap gap-2 mb-4">
-            {allergies.map((a) => (
-              <span key={a} className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium" style={{ background: "#FFE9E9", color: "#B23A3A" }}>
-                <ShieldAlert size={14} /> {a}
-              </span>
-            ))}
-          </div>
-          <div className="text-sm flex items-center gap-2" style={{ color: C.ink }}><Phone size={14} /> {student.guardian}, {student.phone}</div>
+          {allergies.length > 0 ? (
+            <div className="flex flex-wrap gap-2 mb-4">
+              {allergies.map((a) => (
+                <span key={a} className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-sm font-medium" style={{ background: "#FFE9E9", color: "#B23A3A" }}>
+                  <ShieldAlert size={14} /> {a}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm mb-4" style={{ color: "#5B6F8F" }}>No allergies recorded. Tell the clinic if you have any.</p>
+          )}
+          {patient?.nextOfKin ? (
+            <div className="text-sm flex items-center gap-2" style={{ color: C.ink }}><Phone size={14} /> {patient.nextOfKin}{patient.nextOfKinPhone ? `, ${patient.nextOfKinPhone}` : ""}</div>
+          ) : (
+            <p className="text-sm" style={{ color: "#5B6F8F" }}>No emergency contact recorded.</p>
+          )}
         </Card>
       </div>
     </div>
   );
 }
 
-function Appts({ appts, setAppts }) {
-  const [open, setOpen] = useState(false);
-  const [f, setF] = useState({ date: "", time: "", reason: "" });
-  const ok = f.date && f.time && f.reason.trim();
-  const inp = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
-  const save = () => {
-    if (!ok) return;
-    setAppts((a) => [...a, { id: Date.now(), ...f, staff: "To be assigned", status: "Pending" }].sort((x, y) => (x.date + x.time).localeCompare(y.date + y.time)));
-    setF({ date: "", time: "", reason: "" });
-    setOpen(false);
-  };
-  return (
-    <Card
-      title="Appointments"
-      right={
-        <button onClick={() => setOpen(!open)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ background: C.cobalt }}>
-          {open ? <X size={16} /> : <Plus size={16} />} {open ? "Close" : "Book a slot"}
-        </button>
-      }
-    >
-      {open && (
-        <div className="grid gap-3 md:grid-cols-4 p-4 rounded-2xl mb-5" style={{ background: C.mist }}>
-          <label className="text-sm">Date<input type="date" className={inp} style={{ border: `1px solid ${C.line}` }} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></label>
-          <label className="text-sm">Time<input type="time" className={inp} style={{ border: `1px solid ${C.line}` }} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></label>
-          <label className="text-sm md:col-span-2">Reason<input className={inp} style={{ border: `1px solid ${C.line}` }} placeholder="e.g. Persistent cough" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></label>
-          <button onClick={save} disabled={!ok} className="md:col-span-4 rounded-full py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ background: C.ink }}>Send request</button>
-        </div>
-      )}
-      {!appts.length && <p className="text-sm">No appointments yet. Select Book a slot to request one.</p>}
-      <ul>
-        {appts.map((a) => (
-          <li key={a.id} className="py-3 flex items-center justify-between gap-3" style={{ borderTop: `1px solid ${C.line}` }}>
-            <div>
-              <div className="font-semibold" style={{ color: C.ink }}>{a.reason}</div>
-              <div className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(a.date)}, {a.time} · {a.staff}</div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-xs font-semibold rounded-full px-3 py-1" style={a.status === "Confirmed" ? { background: "#DDF6EF", color: "#137A62" } : { background: "#FFF1D6", color: "#8A5B00" }}>{a.status}</span>
-              <button aria-label="Cancel appointment" onClick={() => setAppts((l) => l.filter((x) => x.id !== a.id))}><X size={16} color="#8A9BB8" /></button>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
-}
-
-function History() {
+function History({ visits }) {
   return (
     <Card title="Visit history">
-      <ol className="grid gap-6 ml-2" style={{ borderLeft: `2px solid ${C.line}` }}>
-        {visits.map((v) => (
-          <li key={v.date} className="pl-5 relative">
-            <span className="absolute w-3 h-3 rounded-full top-1.5" style={{ left: -7, background: C.mint }} />
-            <div className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(v.date)} · {v.staff}</div>
-            <div className="font-semibold" style={{ color: C.ink }}>{v.title}</div>
-            <p className="text-sm max-w-xl mt-1">{v.note}</p>
-          </li>
-        ))}
-      </ol>
+      {visits.length === 0 ? <p className="text-sm">No visits on record yet.</p> : (
+        <ol className="grid gap-6 ml-2" style={{ borderLeft: `2px solid ${C.line}` }}>
+          {visits.map((v) => (
+            <li key={v.visitNumber} className="pl-5 relative">
+              <span className="absolute w-3 h-3 rounded-full top-1.5" style={{ left: -7, background: v.status === "cancelled" ? C.coral : C.mint }} />
+              <div className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(v.checkedInAt)} · {time(v.checkedInAt)}{v.clinician ? ` · ${v.clinician}` : ""}</div>
+              <div className="font-semibold" style={{ color: C.ink }}>{v.department}</div>
+              <p className="text-sm max-w-xl mt-1">{STATUS_LABEL[v.status] ?? v.status}</p>
+            </li>
+          ))}
+        </ol>
+      )}
     </Card>
   );
 }
 
-function Vaccines() {
+function NotAvailable({ title, children }) {
+  return <Card title={title}><Note>{children}</Note></Card>;
+}
+
+function SignIn({ onSignedIn }) {
+  const [id, setId] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const inp = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await signIn(id.trim(), password);
+      onSignedIn();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Card title="Vaccines">
-      {vaccines.map((v) => (
-        <div key={v.name} className="py-3 flex items-center justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
-          <div className="flex items-center gap-3">
-            <span className="w-6 h-6 rounded-full flex items-center justify-center" style={{ background: v.done ? C.mint : "#FFD9A8" }}>
-              {v.done && <Check size={14} color={C.ink} />}
-            </span>
-            <span className="font-medium" style={{ color: C.ink }}>{v.name}</span>
-          </div>
-          <span className="text-sm" style={{ color: v.done ? "#5B6F8F" : "#B25E00", fontWeight: v.done ? 400 : 600 }}>{v.when}</span>
+    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: C.mist }}>
+      <form onSubmit={submit} className="bg-white rounded-3xl p-8 w-full max-w-sm grid gap-4" style={{ border: `1px solid ${C.line}` }}>
+        <Logo />
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: C.ink, fontFamily: "Georgia, serif" }}>Student health</h1>
+          <p className="text-sm" style={{ color: "#5B6F8F" }}>Sign in with your matriculation number.</p>
         </div>
-      ))}
-    </Card>
+        {error && <div role="alert" className="rounded-xl p-3 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>}
+        <label className="text-sm">Matric number
+          <input className={inp} style={{ border: `1px solid ${C.line}` }} value={id} onChange={(e) => setId(e.target.value)} required autoComplete="username" />
+        </label>
+        <label className="text-sm">Password
+          <input type="password" className={inp} style={{ border: `1px solid ${C.line}` }} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+        </label>
+        <button disabled={busy} className="rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ background: C.ink }}>
+          {busy ? "Signing in…" : "Sign in"}
+        </button>
+      </form>
+    </div>
   );
 }
 
-function Meds() {
-  return (
-    <Card title="Medications on file">
-      <div className="grid md:grid-cols-2 gap-3">
-        {meds.map((m) => (
-          <div key={m.name} className="rounded-2xl p-4" style={{ background: C.mist }}>
-            <div className="font-semibold" style={{ color: C.ink }}>{m.name}</div>
-            <div className="text-sm mt-1">{m.dose}</div>
-            <div className="text-xs mt-2" style={{ color: "#5B6F8F" }}>{m.note}</div>
-          </div>
-        ))}
-      </div>
-    </Card>
-  );
-}
-
-export default function MediflowStudentDashboard() {
+function Dashboard({ onSignedOut }) {
   const [tab, setTab] = useState("home");
-  const [appts, setAppts] = useState(seedAppts);
+  const [me, setMe] = useState(null);
+  const [health, setHealth] = useState(null);
+  const [error, setError] = useState(null);
   const [showNotices, setShowNotices] = useState(false);
+
+  // State is only set in promise callbacks, after the request settles.
+  const load = useCallback(
+    () =>
+      Promise.all([getMe(), getMyHealth()]).then(
+        ([profile, record]) => {
+          setMe(profile);
+          setHealth(record);
+          setError(null);
+        },
+        (err) => (err.status === 401 ? onSignedOut() : setError(err.message)),
+      ),
+    [onSignedOut],
+  );
+
+  useEffect(() => {
+    const first = setTimeout(load, 0);
+    const timer = setInterval(load, REFRESH_MS);
+    return () => {
+      clearTimeout(first);
+      clearInterval(timer);
+    };
+  }, [load]);
+
+  async function logout() {
+    await signOut();
+    onSignedOut();
+  }
+
+  const notices = [];
+  if (health && !health.linked) notices.push(`Your account isn't linked to a health record yet. Ask reception to link matric number ${me?.unique_id}.`);
+  if (health?.activeVisit?.status === "called") notices.push(`You've been called. Please go to ${health.activeVisit.department}.`);
 
   return (
     <div className="min-h-screen md:flex" style={{ background: C.mist, color: "#2A3B57", fontFamily: "'Avenir Next', 'Segoe UI', system-ui, sans-serif" }}>
@@ -291,6 +278,7 @@ export default function MediflowStudentDashboard() {
             <button
               key={id}
               onClick={() => setTab(id)}
+              aria-current={tab === id ? "page" : undefined}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap"
               style={{ background: tab === id ? C.cobalt : "transparent", color: tab === id ? "#fff" : "#9DB2D6" }}
             >
@@ -298,33 +286,65 @@ export default function MediflowStudentDashboard() {
             </button>
           ))}
         </nav>
+        <button onClick={logout} className="md:mt-auto flex items-center gap-2 px-3 py-2 text-sm" style={{ color: "#9DB2D6" }}>
+          <LogOut size={16} /> <span className="hidden md:inline">Sign out</span>
+        </button>
       </aside>
 
       <div className="flex-1 p-5 md:p-8 max-w-5xl">
         <header className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: C.ink, fontFamily: "Georgia, serif" }}>Hello, {student.name.split(" ")[0]}</h1>
-            <p className="text-sm" style={{ color: "#5B6F8F" }}>{student.grade} · {student.id} · Blood group {student.blood}</p>
+            <h1 className="text-2xl md:text-3xl font-bold" style={{ color: C.ink, fontFamily: "Georgia, serif" }}>
+              Hello{me ? `, ${(me.name || "").split(" ")[0]}` : ""}
+            </h1>
+            <p className="text-sm" style={{ color: "#5B6F8F" }}>
+              {me?.unique_id}{health?.patient ? ` · Hospital no. ${health.patient.hospitalNumber}` : ""}
+            </p>
           </div>
           <div className="relative">
-            <button aria-label="Notifications" onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
+            <button aria-label={`Notifications (${notices.length})`} onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
               <Bell size={18} color={C.ink} />
-              <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{notices.length}</span>
+              {notices.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{notices.length}</span>
+              )}
             </button>
             {showNotices && (
               <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl p-3 grid gap-2 z-10 shadow-lg" style={{ border: `1px solid ${C.line}` }}>
-                {notices.map((n) => <div key={n} className="text-sm rounded-xl p-3" style={{ background: C.mist }}>{n}</div>)}
+                {notices.length ? notices.map((n) => <div key={n} className="text-sm rounded-xl p-3" style={{ background: C.mist }}>{n}</div>)
+                  : <div className="text-sm p-3">No new notices.</div>}
               </div>
             )}
           </div>
         </header>
 
-        {tab === "home" && <Home appts={appts} go={setTab} />}
-        {tab === "appts" && <Appts appts={appts} setAppts={setAppts} />}
-        {tab === "history" && <History />}
-        {tab === "vaccines" && <Vaccines />}
-        {tab === "meds" && <Meds />}
+        {error && <div role="alert" className="rounded-2xl p-4 mb-5 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error} <button className="underline ml-2" onClick={load}>Try again</button></div>}
+        {!health && !error && <p className="text-sm" role="status">Loading your record…</p>}
+
+        {health && !health.linked && (
+          <div className="mb-5">
+            <Note>
+              Your account isn't linked to a health record yet. At your next visit, ask reception to link matric number <strong>{me?.unique_id}</strong>.
+              Then your visits and queue position will appear here.
+            </Note>
+          </div>
+        )}
+
+        {health && tab === "home" && <Home health={health} go={setTab} />}
+        {health && tab === "history" && <History visits={health.visits} />}
+        {tab === "appts" && (
+          <NotAvailable title="Appointments">
+            Online booking isn't available yet. Walk in to the health centre and reception will check you in. Your place in the queue then shows on the Today page.
+          </NotAvailable>
+        )}
+        {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
+        {tab === "meds" && <NotAvailable title="Medications on file">Prescriptions aren't kept in MediFlow yet. Check with the pharmacy or the clinician who treated you.</NotAvailable>}
       </div>
     </div>
   );
+}
+
+export default function App() {
+  const [signedIn, setSignedIn] = useState(isSignedIn());
+  const signedOut = useCallback(() => setSignedIn(false), []);
+  return signedIn ? <Dashboard onSignedOut={signedOut} /> : <SignIn onSignedIn={() => setSignedIn(true)} />;
 }
