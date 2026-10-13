@@ -31,12 +31,15 @@ else:
     DATABASES = {"default": {"ENGINE": "django.db.backends.sqlite3", "NAME": BASE_DIR / "db.sqlite3"}}
 
 AUTH_USER_MODEL = "accounts.User"
-AUTH_PASSWORD_VALIDATORS = [] if DEBUG else [{"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"}]
+# Enforced in every environment (registration and password changes).
+AUTH_PASSWORD_VALIDATORS = [{"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
+                            {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
+                            {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"}]
 LANGUAGE_CODE, TIME_ZONE, USE_I18N, USE_TZ = "en-us", "Africa/Lagos", True, True
 STATIC_URL, STATIC_ROOT = "/static/", BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # JWT (RS256) for the React client and other services; sessions for the legacy FUTA frontend.
-REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min")}}
+REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min"), "login": os.getenv("LOGIN_RATE_LIMIT", "10/min"), "register": os.getenv("REGISTER_RATE_LIMIT", "20/hour")}}
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS

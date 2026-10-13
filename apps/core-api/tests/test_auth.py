@@ -1,5 +1,6 @@
 import jwt
 from django.conf import settings
+from django.core.cache import cache
 from django.test import TestCase, override_settings
 from rest_framework.test import APIClient
 from apps.accounts.models import User
@@ -13,6 +14,7 @@ FAST_HASHER = override_settings(PASSWORD_HASHERS=["django.contrib.auth.hashers.M
 @FAST_HASHER
 class AuthTests(TestCase):
     def setUp(self):
+        cache.clear()  # login throttle state lives in the cache
         self.admin = User.objects.create_user(username="admin", password=PASSWORD, role="admin")
         self.doctor = User.objects.create_user(username="doctor", password=PASSWORD, role="doctor")
         self.client = APIClient()
@@ -104,6 +106,7 @@ class AuthTests(TestCase):
 @FAST_HASHER
 class RbacTests(TestCase):
     def setUp(self):
+        cache.clear()  # login throttle state lives in the cache
         self.admin = User.objects.create_user(username="admin", password=PASSWORD, role="admin")
         self.student = User.objects.create_user(username="student", password=PASSWORD, role="student")
         self.it = User.objects.create_user(username="it", password=PASSWORD, role="it")

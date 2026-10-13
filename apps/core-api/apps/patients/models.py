@@ -24,6 +24,8 @@ class Patient(models.Model):
     diagnosis = models.TextField(blank=True)
     treatment = models.TextField(blank=True)
     notes = models.TextField(blank=True)
+    # Optional login account (e.g. a student) that may view this record via /api/me/health.
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="patient_record")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     def save(self, *args, **kwargs):
@@ -41,8 +43,10 @@ class Visit(models.Model):
     arrival_mode = models.CharField(max_length=32, default="walk_in")
     checked_in_at = models.DateTimeField(auto_now_add=True)
     called_at = models.DateTimeField(null=True, blank=True)
+    started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     assigned_clinician = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_visits")
+    ACTIVE_STATUSES = (Status.WAITING, Status.CALLED, Status.IN_PROGRESS)
     class Meta: ordering = ("esi", "checked_in_at")
     def save(self, *args, **kwargs):
         if not self.visit_number: self.visit_number = f"V-{uuid.uuid4().hex[:10].upper()}"
