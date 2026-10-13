@@ -267,7 +267,7 @@ cd mediflow-platform
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>** and sign in with a demo account (4.4). Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
+Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>**. Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
 
 To change settings, copy `.env.example` to `.env` and edit it. Compose reads it automatically.
 
@@ -317,7 +317,15 @@ cd apps/web
 npm run dev
 ```
 
-Open <http://localhost:5173> and sign in as `nurse` / `nurse123`. Stop any service with `Ctrl+C`. Without Terminal 2, everything works except the AI endpoints, which return `503`.
+Open <http://localhost:5173> and sign in as `nurse` / `nurse123`. Stop any service with `Ctrl+C`.
+
+**Optional, Terminal 5: student dashboard → http://localhost:5174** (needs Node 20.19+ or 22.12+)
+```bash
+cd apps/student-dashboard
+npm install
+npm run dev
+```
+A student sees data only after reception links their matric number to a patient record (Patients → Edit → *Linked account*). Without Terminal 2, everything works except the AI endpoints, which return `503`.
 
 > **Git Bash on Windows:** use forward slashes in paths (`cd /c/Users/you/mediflow-platform`). Backslashes are escape characters there.
 
