@@ -7,7 +7,11 @@ from rest_framework.views import APIView
 from apps.accounts.permissions import CanReadPHI, IsStaff
 from apps.patients.models import Visit
 
+def minutes_between(start, end):
+    return max(0, int((end - start).total_seconds() // 60))
+
 class QueueView(APIView):
+    """Waiting patients, most urgent (ESI) first, then first come first served."""
     permission_classes = [CanReadPHI]
 
     def get(self, request):
@@ -16,9 +20,12 @@ class QueueView(APIView):
         if department:
             visits = visits.filter(department__code=department)
 
+        now = timezone.now()
         queue = []
-        for index, visit in enumerate(visits.order_by("esi", "checked_in_at")):
+        for position, visit in enumerate(visits.order_by("esi", "checked_in_at"), start=1):
+            waited = minutes_between(visit.checked_in_at, now)
             queue.append({
+                "id": visit.id,
                 "visitId": visit.visit_number,
                 "patientId": visit.patient_id,
                 "fullName": visit.patient.full_name,
@@ -26,18 +33,36 @@ class QueueView(APIView):
                 "department": visit.department.code,
                 "priority": visit.esi,
                 "status": "Urgent" if visit.esi <= 2 else "Waiting",
+                "position": position,
                 "arrival": timezone.localtime(visit.checked_in_at).strftime("%H:%M"),
-                "wait": f"{index * 10} min" if index else "Now",
+                # Time actually waited so far (previously a made-up position x 10 min estimate).
+                "waitingMinutes": waited,
+                "wait": f"{waited} min",
             })
         return Response(queue)
 
 class DashboardView(APIView):
+    """Today's operational numbers, all computed from visit records."""
     permission_classes = [IsStaff]
 
     def get(self, request):
-        today = timezone.localdate()
+        now, today = timezone.now(), timezone.localdate()
         visits = Visit.objects.filter(checked_in_at__date=today)
-        return Response({"patientsToday": visits.values("patient").distinct().count(), "currentlyWaiting": visits.filter(status=Visit.Status.WAITING).count(), "emergencyCases": visits.filter(esi__lte=2, status=Visit.Status.WAITING).count(), "byDepartment": list(visits.values("department__name").annotate(total=Count("id")).order_by("department__name"))})
+        waits = [minutes_between(v.checked_in_at, v.called_at or v.started_at)
+                 for v in visits.exclude(called_at__isnull=True, started_at__isnull=True)]
+        waiting_now = Visit.objects.filter(status=Visit.Status.WAITING)
+        oldest = waiting_now.order_by("checked_in_at").values_list("checked_in_at", flat=True).first()
+        return Response({
+            "patientsToday": visits.values("patient").distinct().count(),
+            "currentlyWaiting": waiting_now.count(),
+            "inConsultation": Visit.objects.filter(status=Visit.Status.IN_PROGRESS).count(),
+            "completedToday": visits.filter(status=Visit.Status.COMPLETED).count(),
+            "emergencyCases": waiting_now.filter(esi__lte=2).count(),
+            "averageWaitMinutes": round(sum(waits) / len(waits)) if waits else None,
+            "longestCurrentWaitMinutes": minutes_between(oldest, now) if oldest else None,
+            "byDepartment": list(visits.values("department__name").annotate(total=Count("id")).order_by("department__name")),
+            "byStatus": {row["status"]: row["total"] for row in visits.values("status").annotate(total=Count("id"))},
+        })
 
 class HealthView(APIView):
     """Liveness + database check for container health checks. Reveals nothing sensitive."""

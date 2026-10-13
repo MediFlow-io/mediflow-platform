@@ -1,16 +1,25 @@
-# React + Vite
+# Student dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Tailwind dashboard where a student sees their **own** health record: today's visit and
+place in the queue (live, every 20 s), visit history, allergies and emergency contact.
 
-Currently, two official plugins are available:
+Data comes from the core API (`GET /api/me` and `GET /api/me/health`). A student only sees a record
+after reception **links** it to their matric number (Patients → Edit → *Linked account* in the
+staff web app). Diagnosis, treatment and clinical notes are never shown here.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Appointments, vaccines and medications aren't recorded in MediFlow yet, so those tabs say so
+rather than showing sample data.
 
-## React Compiler
+## Run
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Needs **Node.js 20.19+ or 22.12+** (Vite 8), plus the core API and gateway running
+(see `docs/PROJECT-STATUS.md`).
 
-## Expanding the ESLint configuration
+```bash
+npm install
+npm run dev      # http://localhost:5174 — proxies /api/auth to :8080 and /api to :8000
+npm run lint
+npm run build
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Owner: see `.github/team.toml` (area `student-dashboard`).

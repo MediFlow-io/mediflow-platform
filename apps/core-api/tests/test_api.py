@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import User
@@ -5,6 +6,7 @@ from apps.patients.models import Department, Patient, Visit
 
 class CoreApiTests(TestCase):
     def setUp(self):
+        cache.clear()  # login throttle state lives in the cache
         self.admin = User.objects.create_user(username="admin", password="safe-password", role="admin", is_staff=True)
         self.doctor = User.objects.create_user(username="doctor", password="safe-password", role="doctor")
         self.department = Department.objects.create(name="Outpatient", code="opd")

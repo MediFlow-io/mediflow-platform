@@ -4,6 +4,7 @@ from django.conf import settings
 from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from rest_framework import permissions, status, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -16,6 +17,7 @@ from config.jwt_keys import public_jwk
 
 from .models import User
 from .permissions import STAFF_ROLES, IsAdmin
+from .throttles import LoginRateThrottle, RegisterRateThrottle
 from .serializers import UserSerializer
 
 
@@ -48,6 +50,15 @@ def revoke_all_refresh_tokens(user):
         BlacklistedToken.objects.get_or_create(token=token)
 
 
+def weak_password(password, username):
+    """Return a message if the password fails AUTH_PASSWORD_VALIDATORS, else None."""
+    try:
+        validate_password(password, User(username=username))
+    except ValidationError as error:
+        return " ".join(error.messages)
+    return None
+
+
 def requested_username(data):
     return data.get("unique_id") or data.get("staffId") or data.get("username")
 
@@ -72,6 +83,7 @@ class JwksView(APIView):
 
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [LoginRateThrottle]
     authentication_classes = []
 
     def post(self, request):
@@ -122,9 +134,62 @@ class MeView(APIView):
         return Response(user_response(request.user))
 
 
+class MyHealthView(APIView):
+    """A signed-in person's own record (e.g. the student dashboard).
+
+    Only the record linked to the caller's account (Patient.user) is returned.
+    Clinician-facing fields (diagnosis, treatment, internal notes) are not included.
+    """
+
+    def get(self, request):
+        from apps.patients.models import Patient, Visit
+
+        patient = Patient.objects.filter(user=request.user).first()
+        if patient is None:
+            return Response({"linked": False, "patient": None, "activeVisit": None, "visits": []})
+
+        record(request.user, "patient.self_viewed", "patient", patient.pk)
+        visits = list(patient.visits.select_related("department", "assigned_clinician").order_by("-checked_in_at")[:20])
+        active = next((v for v in visits if v.status in Visit.ACTIVE_STATUSES), None)
+        active_payload = None
+        if active:
+            ahead = None
+            if active.status == Visit.Status.WAITING:
+                # Same ordering as the queue: lower ESI first, then earlier check-in.
+                ahead = Visit.objects.filter(department=active.department, status=Visit.Status.WAITING).filter(
+                    Q(esi__lt=active.esi) | Q(esi=active.esi, checked_in_at__lt=active.checked_in_at)).count()
+            active_payload = {
+                "visitNumber": active.visit_number,
+                "department": active.department.name,
+                "status": active.status,
+                "checkedInAt": active.checked_in_at,
+                "calledAt": active.called_at,
+                "startedAt": active.started_at,
+                "patientsAhead": ahead,
+            }
+
+        def clinician(visit):
+            user = visit.assigned_clinician
+            return (user.display_name or user.username) if user else None
+
+        return Response({
+            "linked": True,
+            "patient": {
+                "hospitalNumber": patient.hospital_number, "fullName": patient.full_name,
+                "dateOfBirth": patient.date_of_birth, "sex": patient.sex, "allergies": patient.allergies,
+                "medicalHistory": patient.medical_history, "nextOfKin": patient.next_of_kin,
+                "nextOfKinPhone": patient.next_of_kin_phone,
+            },
+            "activeVisit": active_payload,
+            "visits": [{"visitNumber": v.visit_number, "checkedInAt": v.checked_in_at, "department": v.department.name,
+                        "status": v.status, "clinician": clinician(v), "completedAt": v.completed_at} for v in visits],
+        })
+
+
 class RegisterView(APIView):
     """Legacy self-registration used by the FUTA frontend's register page."""
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request):
         username = requested_username(request.data)
@@ -138,6 +203,9 @@ class RegisterView(APIView):
         # A client-supplied role is ignored: self-registration must never grant admin or clinical roles.
         # TODO(decision): self-registered staff still get reception access to patient data. Consider
         # creating them inactive until an admin approves, or retiring this route for /api/auth/register/staff.
+        if problem := weak_password(password, username):
+            return Response({"detail": problem}, status=400)
+
         user = User.objects.create_user(
             username=username,
             password=password,
@@ -153,6 +221,7 @@ class RegisterView(APIView):
 
 class StudentRegisterView(APIView):
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RegisterRateThrottle]
 
     def post(self, request):
         username = requested_username(request.data)
@@ -164,6 +233,9 @@ class StudentRegisterView(APIView):
             return Response({"detail": "Account already exists."}, status=400)
 
         display_name = request.data.get("name") or request.data.get("full_name") or username
+        if problem := weak_password(password, username):
+            return Response({"detail": problem}, status=400)
+
         user = User.objects.create_user(
             username=username,
             password=password,
@@ -196,6 +268,9 @@ class StaffRegisterView(APIView):
 
         if User.objects.filter(username=username).exists():
             return Response({"detail": "Account already exists."}, status=400)
+
+        if problem := weak_password(password, username):
+            return Response({"detail": problem}, status=400)
 
         user = User.objects.create_user(
             username=username,
@@ -259,6 +334,37 @@ class ChangePasswordView(APIView):
 
 
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by("username")
+    """Admin staff management. Accounts are deactivated, never deleted, so audit history stays intact.
+
+    Filters: ?role=doctor  ?active=true  ?search=name-or-username
+    """
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
+    http_method_names = ["get", "post", "put", "patch", "head", "options"]
+
+    def get_queryset(self):
+        users = User.objects.all().order_by("username")
+        params = self.request.query_params
+        if role := params.get("role"):
+            users = users.filter(role=role)
+        if params.get("active") in ("true", "false"):
+            users = users.filter(is_active=params["active"] == "true")
+        if search := params.get("search", "").strip():
+            users = users.filter(Q(username__icontains=search) | Q(display_name__icontains=search))
+        return users
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        record(self.request.user, "staff.create", "user", user.id, role=user.role)
+
+    def perform_update(self, serializer):
+        target = serializer.instance
+        data = serializer.validated_data
+        if target.pk == self.request.user.pk and (data.get("is_active") is False or data.get("role", target.role) != target.role):
+            from rest_framework.exceptions import ValidationError as DRFValidationError
+            raise DRFValidationError({"detail": "You cannot deactivate yourself or change your own role."})
+        user = serializer.save()
+        if data.get("is_active") is False:
+            revoke_all_refresh_tokens(user)  # signs them out everywhere at once
+        record(self.request.user, "staff.update", "user", user.id,
+               fields=sorted(k for k in data if k != "password"), password_reset="password" in data)
