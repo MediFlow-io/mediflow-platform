@@ -5,6 +5,7 @@
 /apps/core-api/  @gifted-g1 @payemuibile
 /apps/gateway/  @gifted-g1
 /apps/ai-service/  @gifted-g1
+/apps/patient-flow/  @gifted-g1
 /apps/web/  @gifted-g1
 /apps/student-dashboard/  @gifted-g1 @mnlwayomide-tech
 /apps/first-aid-ui/  @gifted-g1 @DevJustinTech
@@ -19,6 +20,9 @@
 /apps/core-api/Dockerfile  @gifted-g1 @LadyG4
 /apps/gateway/Dockerfile  @gifted-g1 @LadyG4
 /apps/ai-service/Dockerfile  @gifted-g1 @LadyG4
+/apps/patient-flow/Dockerfile  @gifted-g1 @LadyG4
+/apps/student-dashboard/Dockerfile  @gifted-g1 @LadyG4
+/apps/student-dashboard/nginx.conf  @gifted-g1 @LadyG4
 /docs/  @gifted-g1 @david296-gif
 /README.md  @gifted-g1 @david296-gif
 /CONTRIBUTING.md  @gifted-g1 @david296-gif

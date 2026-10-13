@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from apps.accounts.models import User
-from .models import Department, Patient, Visit
+from .models import Department, Patient
 
 class DepartmentSerializer(serializers.ModelSerializer):
     class Meta: model = Department; fields = ("id", "name", "code", "active")
@@ -41,31 +41,3 @@ class PatientSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         return super().update(instance, self._apply_link(validated_data))
-
-class VisitSerializer(serializers.ModelSerializer):
-    patient_name = serializers.CharField(source="patient.full_name", read_only=True)
-    patient_hospital_number = serializers.CharField(source="patient.hospital_number", read_only=True)
-    department_code = serializers.CharField(source="department.code", read_only=True)
-    department_name = serializers.CharField(source="department.name", read_only=True)
-    assigned_clinician_name = serializers.SerializerMethodField()
-
-    def get_assigned_clinician_name(self, visit):
-        user = visit.assigned_clinician
-        return (user.display_name or user.username) if user else None
-
-    def validate(self, attrs):
-        patient = attrs.get("patient")
-        if self.instance is None and patient and patient.visits.filter(status__in=Visit.ACTIVE_STATUSES).exists():
-            raise serializers.ValidationError({"patient": "This patient already has an active visit."})
-        department = attrs.get("department")
-        if department and not department.active:
-            raise serializers.ValidationError({"department": "This department is not active."})
-        return attrs
-    class Meta:
-        model = Visit
-        fields = ("id", "visit_number", "patient", "patient_name", "patient_hospital_number", "department", "department_code", "department_name", "esi", "status", "arrival_mode", "checked_in_at", "called_at", "started_at", "completed_at", "assigned_clinician", "assigned_clinician_name")
-        # Status changes only through the lifecycle actions (apps/patients/flow.py).
-        read_only_fields = ("visit_number", "status", "checked_in_at", "called_at", "started_at", "completed_at")
-    def validate_esi(self, value):
-        if not 1 <= value <= 5: raise serializers.ValidationError("ESI must be from 1 to 5.")
-        return value

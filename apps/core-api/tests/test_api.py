@@ -2,7 +2,7 @@ from django.core.cache import cache
 from django.test import TestCase
 from rest_framework.test import APIClient
 from apps.accounts.models import User
-from apps.patients.models import Department, Patient, Visit
+from apps.patients.models import Department
 
 class CoreApiTests(TestCase):
     def setUp(self):
@@ -26,12 +26,3 @@ class CoreApiTests(TestCase):
         self.assertEqual(created.status_code, 201)
         self.assertTrue(created.data["hospitalNumber"].startswith("MF-"))
         self.assertEqual(self.client.get(f"/api/patients/{created.data['id']}").data["fullName"], "Amina Yusuf")
-
-    def test_queue_is_esi_then_fcfs(self):
-        first = Patient.objects.create(full_name="First", sex="Male", phone="1")
-        urgent = Patient.objects.create(full_name="Urgent", sex="Female", phone="2")
-        Visit.objects.create(patient=first, department=self.department, esi=3)
-        Visit.objects.create(patient=urgent, department=self.department, esi=1)
-        self.login()
-        queue = self.client.get("/api/queue").data
-        self.assertEqual([item["fullName"] for item in queue], ["Urgent", "First"])

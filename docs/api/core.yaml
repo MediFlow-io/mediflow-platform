@@ -6,6 +6,9 @@ info:
     Django core API. Every route needs a JWT bearer token or a session, unless marked otherwise.
     Roles and permissions are listed per operation. Auth routes live in auth.yaml; AI routes in ai.yaml.
     Every read or write of an identifiable patient record is written to the audit log (search text is not stored).
+
+    Served by two services behind one origin (ADR-0002): /api/visits*, /api/queue* and /api/dashboard come from
+    the Go patient-flow service (apps/patient-flow); everything else from Django (apps/core-api).
 servers:
   - url: /
 security: [{bearer: []}, {session: []}]
@@ -96,6 +99,16 @@ paths:
                     position: {type: integer}
                     waitingMinutes: {type: integer, description: Time actually waited so far}
                     wait: {type: string, example: "12 min"}
+  /api/queue/events:
+    get:
+      summary: Live queue changes as server-sent events (same roles as /api/queue). Served by Go.
+      description: |
+        `event: visit` with data `{"visitId", "action", "status", "department"}` after every committed
+        check-in, edit or lifecycle action; `: ping` comments keep the connection alive. Clients refetch
+        /api/queue on each event. Send the bearer token in the Authorization header (fetch + stream
+        reader), never in the URL.
+      responses:
+        "200": {description: Event stream, content: {text/event-stream: {}}}
   /api/dashboard:
     get:
       summary: Today's metrics from visit records (all staff)

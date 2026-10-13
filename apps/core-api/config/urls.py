@@ -15,8 +15,8 @@ from apps.accounts.views import (
     TokenRefreshView,
     UserViewSet,
 )
-from apps.patients.views import DepartmentViewSet, PatientViewSet, VisitViewSet
-from apps.operations.views import DashboardView, HealthView, QueueView
+from apps.patients.views import DepartmentViewSet, PatientViewSet
+from apps.operations.views import HealthView
 from apps.ai.views import AskView, TriageSuggestView
 
 router = DefaultRouter()
@@ -24,7 +24,7 @@ router.trailing_slash = ""  # Existing MediFlow frontend calls /api/patients, no
 router.register("users", UserViewSet, basename="user")
 router.register("patients", PatientViewSet, basename="patient")
 router.register("departments", DepartmentViewSet, basename="department")
-router.register("visits", VisitViewSet, basename="visit")
+# /api/visits, /api/queue and /api/dashboard are served by the Go patient-flow service (ADR-0002).
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -34,8 +34,6 @@ urlpatterns = [
     path("api/register", RegisterView.as_view()), path("api/register/", RegisterView.as_view()),
     path("api/me", MeView.as_view()), path("api/me/", MeView.as_view()),
     path("api/me/health", MyHealthView.as_view()), path("api/me/health/", MyHealthView.as_view()),
-    path("api/queue", QueueView.as_view()), path("api/queue/", QueueView.as_view()),
-    path("api/dashboard", DashboardView.as_view()), path("api/dashboard/", DashboardView.as_view()),
     path("api/auth/login", LoginView.as_view()), path("api/auth/login/", LoginView.as_view()),
     path("api/auth/logout", LogoutView.as_view()), path("api/auth/logout/", LogoutView.as_view()),
     path("api/auth/register/student", StudentRegisterView.as_view()), path("api/auth/register/student/", StudentRegisterView.as_view()),

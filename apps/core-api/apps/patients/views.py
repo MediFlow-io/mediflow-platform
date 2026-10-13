@@ -1,12 +1,11 @@
+# Visits, the queue and the flow dashboard are served by the Go patient-flow service
+# (apps/patient-flow, ADR-0002). This app still owns patients and departments.
 from django.db.models import Q
 from rest_framework import permissions, viewsets
-from rest_framework.decorators import action
-from rest_framework.response import Response
 from apps.accounts.permissions import PATIENT_WRITE_ROLES, PHI_READ_ROLES, IsAdmin, has_role
 from apps.operations.audit import record
-from .flow import TRANSITIONS, TransitionError, apply_transition
-from .models import Department, Patient, Visit
-from .serializers import DepartmentSerializer, PatientSerializer, VisitSerializer
+from .models import Department, Patient
+from .serializers import DepartmentSerializer, PatientSerializer
 
 class CanManagePatients(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -48,49 +47,3 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
     def get_permissions(self):
         return [permissions.IsAuthenticated()] if self.request.method in permissions.SAFE_METHODS else [IsAdmin()]
-
-class VisitViewSet(viewsets.ModelViewSet):
-    """Check-ins. Filters: ?status=waiting,called  ?department=opd  ?patient=12  ?today=true"""
-    serializer_class = VisitSerializer
-    permission_classes = [CanManagePatients]
-    def get_queryset(self):
-        visits = Visit.objects.select_related("patient", "department", "assigned_clinician")
-        params = self.request.query_params
-        if statuses := [s for s in params.get("status", "").split(",") if s]:
-            visits = visits.filter(status__in=statuses)
-        if department := params.get("department"):
-            visits = visits.filter(department__code=department)
-        if patient := params.get("patient"):
-            visits = visits.filter(patient_id=patient)
-        if params.get("today") == "true":
-            from django.utils import timezone
-            visits = visits.filter(checked_in_at__date=timezone.localdate())
-        return visits
-    def perform_create(self, serializer):
-        visit = serializer.save()
-        record(self.request.user, "visit.checked_in", "visit", visit.pk, esi=visit.esi, department=visit.department.code)
-    def perform_update(self, serializer):
-        visit = serializer.save()
-        record(self.request.user, "visit.updated", "visit", visit.pk, fields=sorted(serializer.validated_data))
-
-    def _transition(self, request, pk, name):
-        # Roles are checked per action in flow.py (nurses may start/complete but not edit visits).
-        if not str(pk).isdigit() or not Visit.objects.filter(pk=pk).exists():
-            return Response({"detail": "Not found."}, status=404)
-        try:
-            visit = apply_transition(int(pk), name, request.user)
-        except TransitionError as error:
-            return Response({"detail": str(error)}, status=error.status_code)
-        record(request.user, f"visit.{name}", "visit", visit.pk, status=visit.status)
-        return Response(VisitSerializer(visit).data)
-
-    @action(detail=True, methods=["post"])
-    def call(self, request, pk=None): return self._transition(request, pk, "call")
-    @action(detail=True, methods=["post"])
-    def start(self, request, pk=None): return self._transition(request, pk, "start")
-    @action(detail=True, methods=["post"])
-    def complete(self, request, pk=None): return self._transition(request, pk, "complete")
-    @action(detail=True, methods=["post"])
-    def cancel(self, request, pk=None): return self._transition(request, pk, "cancel")
-
-assert set(TRANSITIONS) == {"call", "start", "complete", "cancel"}, "add a route for every transition"

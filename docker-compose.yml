@@ -52,6 +52,19 @@ services:
       EMERGENCY_NUMBER: ${EMERGENCY_NUMBER:-112}
     # No published port: only the api service may reach it.
 
+  patient-flow:
+    # Go service that owns visits, the queue and the flow dashboard (ADR-0002).
+    build: ./apps/patient-flow
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mediflow}
+      POSTGRES_USER: ${POSTGRES_USER:-mediflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediflow-dev-only}
+      POSTGRES_HOST: db
+      JWKS_URL: http://api:8000/api/auth/jwks
+      TIME_ZONE: ${TIME_ZONE:-Africa/Lagos}
+    depends_on:
+      api: {condition: service_healthy}   # the API runs the schema migrations
+
   gateway:
     build: ./apps/gateway
     environment:
@@ -70,6 +83,7 @@ services:
     depends_on:
       api: {condition: service_healthy}
       gateway: {condition: service_healthy}
+      patient-flow: {condition: service_healthy}
 
   student:
     build: ./apps/student-dashboard
@@ -78,6 +92,7 @@ services:
     depends_on:
       api: {condition: service_healthy}
       gateway: {condition: service_healthy}
+      patient-flow: {condition: service_healthy}
 
 volumes:
   postgres_data:

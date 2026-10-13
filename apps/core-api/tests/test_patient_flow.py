@@ -1,8 +1,5 @@
-from datetime import timedelta
-
 from django.core.cache import cache
 from django.test import TestCase, override_settings
-from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import User
@@ -27,84 +24,10 @@ class FlowTestCase(TestCase):
         client.force_authenticate(User.objects.get(username=username))
         return client
 
-    def check_in(self, patient=None, esi=3, client=None):
-        response = (client or self.as_user("reception")).post(
-            "/api/visits", {"patient": (patient or self.patient).id, "department": self.opd.id, "esi": esi}, format="json")
-        self.assertEqual(response.status_code, 201, response.data)
-        return response.data
-
-
-class VisitLifecycleTests(FlowTestCase):
-    def test_full_flow_sets_timestamps_and_clinician(self):
-        visit = self.check_in()
-        self.assertEqual(self.as_user("reception").post(f"/api/visits/{visit['id']}/call").data["status"], "called")
-        started = self.as_user("nurse").post(f"/api/visits/{visit['id']}/start").data
-        self.assertEqual((started["status"], started["assigned_clinician_name"]), ("in_progress", "Nurse"))
-        done = self.as_user("doctor").post(f"/api/visits/{visit['id']}/complete").data
-        self.assertEqual(done["status"], "completed")
-        self.assertTrue(done["called_at"] and done["started_at"] and done["completed_at"])
-        actions = list(AuditLog.objects.filter(entity_type="visit").values_list("action", flat=True))
-        self.assertEqual(sorted(actions), ["visit.call", "visit.checked_in", "visit.complete", "visit.start"])
-
-    def test_invalid_transition_is_409(self):
-        visit = self.check_in()
-        response = self.as_user("doctor").post(f"/api/visits/{visit['id']}/complete")
-        self.assertEqual(response.status_code, 409)
-        self.assertIn("waiting", response.data["detail"])
-
-    def test_roles_per_transition(self):
-        visit = self.check_in()
-        self.assertEqual(self.as_user("reception").post(f"/api/visits/{visit['id']}/start").status_code, 403)
-        self.assertEqual(self.as_user("lab").post(f"/api/visits/{visit['id']}/call").status_code, 403)
-        self.assertEqual(self.as_user("student").post(f"/api/visits/{visit['id']}/cancel").status_code, 403)
-        self.assertEqual(self.as_user("reception").post(f"/api/visits/{visit['id']}/cancel").data["status"], "cancelled")
-
-    def test_status_cannot_be_patched_directly(self):
-        visit = self.check_in()
-        self.as_user("admin").patch(f"/api/visits/{visit['id']}", {"status": "completed"}, format="json")
-        self.assertEqual(Visit.objects.get(pk=visit["id"]).status, "waiting")
-
-    def test_one_active_visit_per_patient(self):
-        self.check_in()
-        response = self.as_user("reception").post(
-            "/api/visits", {"patient": self.patient.id, "department": self.opd.id, "esi": 3}, format="json")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("active visit", str(response.data))
-
-    def test_unknown_visit_is_404(self):
-        self.assertEqual(self.as_user("doctor").post("/api/visits/999999/start").status_code, 404)
-
-    def test_visit_filters(self):
-        visit = self.check_in()
-        other = Patient.objects.create(full_name="Other", sex="Male", phone="1")
-        second = self.check_in(other)
-        self.as_user("reception").post(f"/api/visits/{second['id']}/call")
-        waiting = self.as_user("doctor").get("/api/visits?status=waiting&department=opd&today=true").data
-        self.assertEqual([v["id"] for v in waiting], [visit["id"]])
-
-
-class QueueAndDashboardTests(FlowTestCase):
-    def test_queue_reports_real_wait_and_position(self):
-        visit = self.check_in(esi=3)
-        Visit.objects.filter(pk=visit["id"]).update(checked_in_at=timezone.now() - timedelta(minutes=25))
-        urgent = self.check_in(Patient.objects.create(full_name="Urgent", sex="Male", phone="2"), esi=1)
-        queue = self.as_user("nurse").get("/api/queue").data
-        self.assertEqual([q["id"] for q in queue], [urgent["id"], visit["id"]])
-        self.assertEqual(queue[1]["position"], 2)
-        self.assertGreaterEqual(queue[1]["waitingMinutes"], 25)
-        self.assertEqual(queue[1]["wait"], f"{queue[1]['waitingMinutes']} min")
-
-    def test_dashboard_metrics_come_from_records(self):
-        first = self.check_in()
-        Visit.objects.filter(pk=first["id"]).update(checked_in_at=timezone.now() - timedelta(minutes=30))
-        self.as_user("reception").post(f"/api/visits/{first['id']}/call")
-        self.as_user("doctor").post(f"/api/visits/{first['id']}/start")
-        self.check_in(Patient.objects.create(full_name="Second", sex="Male", phone="3"), esi=2)
-        data = self.as_user("doctor").get("/api/dashboard").data
-        self.assertEqual((data["patientsToday"], data["currentlyWaiting"], data["inConsultation"], data["emergencyCases"]),
-                         (2, 1, 1, 1))
-        self.assertGreaterEqual(data["averageWaitMinutes"], 30)
-        self.assertEqual(data["byStatus"], {"in_progress": 1, "waiting": 1})
+    def check_in(self, patient=None, esi=3):
+        # Visits are written by the Go patient-flow service; tests create them directly.
+        visit = Visit.objects.create(patient=patient or self.patient, department=self.opd, esi=esi)
+        return {"id": visit.id, "visit_number": visit.visit_number}
 
 
 class PatientAuditAndLinkTests(FlowTestCase):
