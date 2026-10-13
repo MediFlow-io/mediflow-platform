@@ -24,7 +24,7 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 | Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, visits, queue, dashboard, AI proxy, health check |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
-| Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Auth screens only; dashboards not built yet |
+| Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Staff app: dashboard, queue with call/start/complete/cancel, patients (search, register, edit, link student), check-in with AI triage suggestion, staff management, account |
 | First-aid UI | React + TypeScript | `apps/first-aid-ui/` | ✅ Static first-aid and wellbeing tips |
 | FUTA staff frontend | Plain HTML/JS | `apps/futa-web/` | Legacy; uses session login against the core API |
 | Infrastructure & team automation | Docker Compose, GitHub Actions, `scripts/team_status.py` | `docker-compose.yml`, `.github/workflows/ci.yml` | ✅ One-command stack and CI (see the caveat in 4.1) |
@@ -383,7 +383,9 @@ All are listed with defaults in [`.env.example`](../.env.example).
 | `AI_ENV` / `EMERGENCY_NUMBER` | `development` / `112` | AI service mode; emergency number in answers |
 | `WEB_PORT` | `8080` | Host port for the Docker stack |
 | Gateway: `DJANGO_BASE_URL`, `ALLOWED_ORIGIN`, `PORT` | `http://localhost:8000`, `http://localhost:5173`, `8080` | Gateway settings |
-| `VITE_GATEWAY_URL` | `http://localhost:8080` (empty in Docker = same origin) | Where the React client sends auth requests |
+| `VITE_GATEWAY_URL` / `VITE_API_URL` | empty = same origin | Where the web app sends auth / API requests. Leave empty: Nginx (Docker) and the Vite dev proxy route `/api/auth/*` to the gateway and `/api/*` to Django |
+| `MEDIFLOW_GATEWAY` / `MEDIFLOW_API` | `http://localhost:8080` / `http://localhost:8000` | Vite dev-proxy targets (`npm run dev` only) |
+| `VITE_STUDENT_DASHBOARD_URL` | `http://localhost:5174` | Where the web app sends students after sign-in |
 
 Generate production JWT keys:
 ```bash

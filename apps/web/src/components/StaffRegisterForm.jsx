@@ -2,7 +2,6 @@ import { useState } from "react";
 import { authApi } from "../api/client";
 
 const ROLES = ["Admin", "Doctor", "Nurse", "Reception", "Lab", "Pharmacy", "IT"];
-const GENDERS = ["Male", "Female", "Other"];
 
 const initial = {
   name: "",
@@ -10,12 +9,9 @@ const initial = {
   email: "",
   password: "",
   role: ROLES[1],
-  gender: GENDERS[0],
-  department: "",
-  phone_number: "",
 };
 
-export default function StaffRegisterForm() {
+export default function StaffRegisterForm({ onCreated }) {
   const [form, setForm] = useState(initial);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
@@ -36,6 +32,7 @@ export default function StaffRegisterForm() {
         `${result.role} account created for ${result.profile?.name ?? form.name} (${result.unique_id}).`
       );
       setForm(initial);
+      onCreated?.(result);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,8 +43,8 @@ export default function StaffRegisterForm() {
   return (
     <form onSubmit={handleSubmit}>
       <p className="hint" style={{ marginBottom: "16px" }}>
-        Requires an administrator session. The gateway attaches your bearer
-        token automatically.
+        Creates a staff account. Share the temporary password securely and ask
+        them to change it after their first sign-in.
       </p>
 
       {error && <div className="error-box">{error}</div>}
@@ -81,43 +78,9 @@ export default function StaffRegisterForm() {
         </div>
       </div>
 
-      <div className="row-2">
-        <div className="field">
-          <label htmlFor="s_gender">Gender</label>
-          <select id="s_gender" value={form.gender} onChange={update("gender")}>
-            {GENDERS.map((g) => (
-              <option key={g} value={g}>
-                {g}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="s_department">Department</label>
-          <input
-            id="s_department"
-            placeholder="Cardiology"
-            value={form.department}
-            onChange={update("department")}
-            required
-          />
-        </div>
-      </div>
-
       <div className="field">
         <label htmlFor="s_email">Email</label>
-        <input id="s_email" type="email" value={form.email} onChange={update("email")} required />
-      </div>
-
-      <div className="field">
-        <label htmlFor="s_phone">Phone number</label>
-        <input
-          id="s_phone"
-          placeholder="11 digits"
-          value={form.phone_number}
-          onChange={update("phone_number")}
-          required
-        />
+        <input id="s_email" type="email" value={form.email} onChange={update("email")} />
       </div>
 
       <div className="field">
@@ -128,7 +91,9 @@ export default function StaffRegisterForm() {
           value={form.password}
           onChange={update("password")}
           required
+          minLength={8}
         />
+        <p className="hint">At least 8 characters, not a common or all-numeric password.</p>
       </div>
 
       <button className="btn" type="submit" disabled={loading}>
