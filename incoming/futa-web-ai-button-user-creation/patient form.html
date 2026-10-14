@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Patient Form - FUTA Hospital Management System</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body>
+  <script src="homepage.js"></script>
+
+  <header class="topbar">
+    <h2>FUTA Hospital Management System</h2>
+
+    <nav>
+      <a href="dashboard.html">Patient Records</a>
+      <button id="logoutButton" class="logout-button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="page-heading">
+      <div>
+        <h1 id="formTitle">Register Patient</h1>
+        <p class="muted">Enter patient and medical report information.</p>
+      </div>
+
+      <a href="dashboard.html" class="button secondary">
+        Back to Records
+      </a>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <form id="patientForm" class="form-card wide-form">
+      <h2>Patient Details</h2>
+
+      <div class="form-grid">
+        <div>
+          <label for="fullName">Full name *</label>
+          <input type="text" id="fullName" required>
+        </div>
+
+        <div>
+          <label for="dateOfBirth">Date of birth</label>
+          <input type="date" id="dateOfBirth">
+        </div>
+
+        <div>
+          <label for="sex">Sex *</label>
+          <select id="sex" required>
+            <option value="">Select sex</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+
+        <div>
+          <label for="phone">Phone number *</label>
+          <input type="tel" id="phone" required>
+        </div>
+      </div>
+
+      <label for="address">Address</label>
+      <textarea id="address" rows="3"></textarea>
+
+      <h2>Emergency Contact</h2>
+
+      <div class="form-grid">
+        <div>
+          <label for="nextOfKin">Next of kin</label>
+          <input type="text" id="nextOfKin">
+        </div>
+
+        <div>
+          <label for="nextOfKinPhone">Next-of-kin phone</label>
+          <input type="tel" id="nextOfKinPhone">
+        </div>
+      </div>
+
+      <h2>Medical Report</h2>
+
+      <label for="allergies">Allergies</label>
+      <textarea id="allergies" rows="3"></textarea>
+
+      <label for="medicalHistory">Previous medical history</label>
+      <textarea id="medicalHistory" rows="4"></textarea>
+
+      <label for="complaint">Presenting complaint</label>
+      <textarea id="complaint" rows="4"></textarea>
+
+      <label for="diagnosis">Diagnosis</label>
+      <textarea id="diagnosis" rows="4"></textarea>
+
+      <label for="treatment">Treatment and prescription notes</label>
+      <textarea id="treatment" rows="4"></textarea>
+
+      <label for="notes">Additional notes</label>
+      <textarea id="notes" rows="4"></textarea>
+
+      <button class="button" type="submit">
+        Save Patient
+      </button>
+    </form>
+  </main>
+
+  <script src="auth-guard.js"></script>
+  <script src="ai-widget.js"></script>
+  <script src="js/patient-form.js"></script>
+</body>
+</html>

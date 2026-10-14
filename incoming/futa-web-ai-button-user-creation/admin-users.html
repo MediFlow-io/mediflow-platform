@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Student Account - FUTA Hospital Management System</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body>
+  <script src="homepage.js"></script>
+
+  <header class="topbar">
+    <h2>FUTA Hospital Management System</h2>
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <button id="logoutButton" class="logout-button" type="button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="page-heading">
+      <div>
+        <h1>Create student account</h1>
+        <p class="muted">Create a login for a student. Student permissions can be assigned later.</p>
+      </div>
+      <a href="dashboard.html" class="button secondary">Back to Dashboard</a>
+    </div>
+
+    <form id="studentForm" class="form-card">
+      <div id="message" class="message" role="alert" aria-live="polite"></div>
+
+      <label for="studentId">Student ID</label>
+      <input type="text" id="studentId" maxlength="64" autocomplete="username" required>
+
+      <label for="fullName">Student name</label>
+      <input type="text" id="fullName" maxlength="120" autocomplete="name" required>
+
+      <label for="password">Temporary password</label>
+      <input type="password" id="password" minlength="12" autocomplete="new-password" required>
+
+      <label for="confirmPassword">Confirm temporary password</label>
+      <input type="password" id="confirmPassword" minlength="12" autocomplete="new-password" required>
+
+      <button class="button full-width" type="submit">Create student account</button>
+    </form>
+  </main>
+
+  <script src="account-validation.js"></script>
+  <script src="admin-guard.js"></script>
+  <script src="ai-widget.js"></script>
+  <script src="js/admin-users.js"></script>
+</body>
+</html>
