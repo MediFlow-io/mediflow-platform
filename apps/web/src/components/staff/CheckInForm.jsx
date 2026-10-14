@@ -35,19 +35,27 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
   const [saving, setSaving] = useState(false);
   const canSuggest = can(user, "triageSuggestion");
 
-  async function suggest() {
-    setError(null);
-    setSuggesting(true);
+  // The same observations go to the AI suggestion and are saved with the check-in.
+  function observations() {
     const numeric = Object.fromEntries(
       Object.entries(vitals).filter(([, v]) => v !== "").map(([k, v]) => [k, k === "temperature_c" ? parseFloat(v) : parseInt(v, 10)]),
     );
+    const painScore = pain === "" ? null : parseInt(pain, 10);
+    const entered = complaint.trim() !== "" || painScore !== null || Object.keys(numeric).length > 0;
+    return { entered, chief_complaint: complaint.trim(), pain_score: painScore, vitals: { ...numeric, avpu } };
+  }
+
+  async function suggest() {
+    setError(null);
+    setSuggesting(true);
+    const { chief_complaint, pain_score, vitals: observed } = observations();
     try {
       // Only clinical signals are sent. Names and record numbers stay in the core API.
       const result = await mediflowApi.triageSuggestion({
-        chief_complaint: complaint,
+        chief_complaint,
         age_years: ageInYears(patient.dateOfBirth),
-        pain_score: pain === "" ? null : parseInt(pain, 10),
-        vitals: { ...numeric, avpu },
+        pain_score,
+        vitals: observed,
       });
       setSuggestion(result);
       if (!esi) setEsi(String(result.suggested_esi));
@@ -63,7 +71,10 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
     setError(null);
     setSaving(true);
     try {
-      const visit = await mediflowApi.checkIn({ patient: patient.id, department: Number(department), esi: Number(esi) });
+      const payload = { patient: patient.id, department: Number(department), esi: Number(esi) };
+      const { entered, ...observed } = observations();
+      // Save observations only when someone actually took them (the AVPU field defaults to "Alert").
+      const visit = await mediflowApi.checkIn(canSuggest && entered ? { ...payload, ...observed } : payload);
       onDone?.(visit);
     } catch (err) {
       setError(err);
@@ -101,7 +112,7 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
 
       {canSuggest && (
         <fieldset>
-          <legend>AI triage suggestion (optional)</legend>
+          <legend>Triage observations · optional AI suggestion</legend>
           <div className="field span-2">
             <label htmlFor="ci-complaint">Chief complaint</label>
             <input id="ci-complaint" value={complaint} onChange={(e) => setComplaint(e.target.value)} maxLength={500} />
@@ -130,7 +141,7 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
             <button type="button" className="btn btn-secondary" onClick={suggest} disabled={suggesting}>
               {suggesting ? "Asking…" : "Suggest ESI"}
             </button>
-            <p className="hint">Vitals are used for the suggestion only and aren't saved to the record yet.</p>
+            <p className="hint">These observations are saved with the visit when you check the patient in.</p>
           </div>
           {suggestion && (
             <div className="suggestion span-2" role="status">

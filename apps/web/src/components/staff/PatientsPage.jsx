@@ -3,7 +3,7 @@ import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { can } from "../../lib/roles";
-import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime } from "../ui";
+import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
 import CheckInForm from "./CheckInForm";
 import PatientForm from "./PatientForm";
 
@@ -131,13 +131,14 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
       {visits.data && visits.data.length === 0 && <Empty>No visits yet.</Empty>}
       {visits.data && visits.data.length > 0 && (
         <table className="table">
-          <thead><tr><th>Date</th><th>Department</th><th>ESI</th><th>Status</th><th>Clinician</th></tr></thead>
+          <thead><tr><th>Date</th><th>Department</th><th>ESI</th><th>Complaint / observations</th><th>Status</th><th>Clinician</th></tr></thead>
           <tbody>
             {[...visits.data].sort((a, b) => b.checked_in_at.localeCompare(a.checked_in_at)).map((v) => (
               <tr key={v.id}>
                 <td>{formatDate(v.checked_in_at)} {formatTime(v.checked_in_at)}</td>
                 <td>{v.department_name}</td>
                 <td>{v.esi}</td>
+                <td>{v.chief_complaint || "—"}{formatVitals(v) && <div className="small muted">{formatVitals(v)}</div>}</td>
                 <td><StatusBadge status={v.status} /></td>
                 <td>{v.assigned_clinician_name || "—"}</td>
               </tr>

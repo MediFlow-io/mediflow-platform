@@ -174,23 +174,26 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 // ---------------------------------------------------------------- JSON shapes
 
 type visitJSON struct {
-	ID                    int64   `json:"id"`
-	VisitNumber           string  `json:"visit_number"`
-	Patient               int64   `json:"patient"`
-	PatientName           string  `json:"patient_name"`
-	PatientHospitalNumber string  `json:"patient_hospital_number"`
-	Department            int64   `json:"department"`
-	DepartmentCode        string  `json:"department_code"`
-	DepartmentName        string  `json:"department_name"`
-	ESI                   int     `json:"esi"`
-	Status                string  `json:"status"`
-	ArrivalMode           string  `json:"arrival_mode"`
-	CheckedInAt           string  `json:"checked_in_at"`
-	CalledAt              *string `json:"called_at"`
-	StartedAt             *string `json:"started_at"`
-	CompletedAt           *string `json:"completed_at"`
-	AssignedClinician     *int64  `json:"assigned_clinician"`
-	AssignedClinicianName *string `json:"assigned_clinician_name"`
+	ID                    int64      `json:"id"`
+	VisitNumber           string     `json:"visit_number"`
+	Patient               int64      `json:"patient"`
+	PatientName           string     `json:"patient_name"`
+	PatientHospitalNumber string     `json:"patient_hospital_number"`
+	Department            int64      `json:"department"`
+	DepartmentCode        string     `json:"department_code"`
+	DepartmentName        string     `json:"department_name"`
+	ESI                   int        `json:"esi"`
+	Status                string     `json:"status"`
+	ArrivalMode           string     `json:"arrival_mode"`
+	CheckedInAt           string     `json:"checked_in_at"`
+	CalledAt              *string    `json:"called_at"`
+	StartedAt             *string    `json:"started_at"`
+	CompletedAt           *string    `json:"completed_at"`
+	AssignedClinician     *int64     `json:"assigned_clinician"`
+	AssignedClinicianName *string    `json:"assigned_clinician_name"`
+	ChiefComplaint        string     `json:"chief_complaint"`
+	PainScore             *int       `json:"pain_score"`
+	Vitals                vitalsJSON `json:"vitals"`
 }
 
 // stamp formats like Django REST Framework: local time with offset and microseconds.
@@ -214,6 +217,7 @@ func (s *Server) visitOut(v store.Visit) visitJSON {
 		Status: string(v.Status), ArrivalMode: v.ArrivalMode, CheckedInAt: s.stamp(v.CheckedInAt),
 		CalledAt: s.stampPtr(v.CalledAt), StartedAt: s.stampPtr(v.StartedAt), CompletedAt: s.stampPtr(v.CompletedAt),
 		AssignedClinician: v.ClinicianID, AssignedClinicianName: v.ClinicianName,
+		ChiefComplaint: v.Vitals.Complaint, PainScore: v.Vitals.PainScore, Vitals: vitalsOut(v.Vitals),
 	}
 }
 
@@ -346,6 +350,7 @@ func (s *Server) checkIn(w http.ResponseWriter, r *http.Request) {
 	if raw, present := fields["arrival_mode"]; present {
 		_ = json.Unmarshal(raw, &in.ArrivalMode)
 	}
+	in.Vitals, _ = parseVitals(fields, problems)
 	if len(problems) > 0 {
 		writeJSON(w, http.StatusBadRequest, problems)
 		return
@@ -412,6 +417,9 @@ func (s *Server) updateVisit(w http.ResponseWriter, r *http.Request) {
 		}
 		p.ClinicianID = &clinician
 	}
+	if vitals, present := parseVitals(fields, problems); present {
+		p.Vitals = &vitals
+	}
 	// status, timestamps and visit_number are read-only and ignored, as before.
 	if len(problems) > 0 {
 		writeJSON(w, http.StatusBadRequest, problems)
@@ -453,6 +461,7 @@ type queueEntry struct {
 	Arrival        string `json:"arrival"`
 	WaitingMinutes int    `json:"waitingMinutes"`
 	Wait           string `json:"wait"`
+	ChiefComplaint string `json:"chiefComplaint"`
 }
 
 func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
@@ -474,7 +483,7 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 			ID: v.ID, VisitID: v.Number, PatientID: v.PatientID, FullName: v.PatientName,
 			HospitalNumber: v.PatientHospitalNumber, Department: v.DepartmentCode, Priority: v.ESI,
 			Status: label, Position: i + 1, Arrival: v.CheckedInAt.In(s.Loc).Format("15:04"),
-			WaitingMinutes: waited, Wait: fmt.Sprintf("%d min", waited),
+			WaitingMinutes: waited, Wait: fmt.Sprintf("%d min", waited), ChiefComplaint: v.Vitals.Complaint,
 		}
 	}
 	writeJSON(w, http.StatusOK, out)

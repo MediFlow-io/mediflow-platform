@@ -44,6 +44,21 @@ export function PageHeader({ title, subtitle, children }) {
   );
 }
 
+/** Short summary of recorded observations, e.g. "HR 112 · SpO₂ 95% · 37.4 °C · pain 6/10". */
+export function formatVitals(visit) {
+  const v = visit?.vitals || {};
+  const parts = [
+    v.heart_rate != null && `HR ${v.heart_rate}`,
+    v.resp_rate != null && `RR ${v.resp_rate}`,
+    v.spo2 != null && `SpO₂ ${v.spo2}%`,
+    v.temperature_c != null && `${v.temperature_c} °C`,
+    v.systolic_bp != null && `BP ${v.systolic_bp}`,
+    v.avpu && v.avpu !== "A" && `AVPU ${v.avpu}`,
+    visit?.pain_score != null && `pain ${visit.pain_score}/10`,
+  ].filter(Boolean);
+  return parts.join(" · ");
+}
+
 export const formatTime = (value) =>
   value ? new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "—";
 

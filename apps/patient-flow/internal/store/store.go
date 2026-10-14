@@ -39,6 +39,18 @@ type User struct {
 	Active      bool
 }
 
+// Vitals are the triage observations recorded at check-in.
+type Vitals struct {
+	Complaint    string
+	PainScore    *int
+	HeartRate    *int
+	RespRate     *int
+	SpO2         *int
+	TemperatureC *float64
+	SystolicBP   *int
+	AVPU         string // "", A, V, P or U
+}
+
 type Visit struct {
 	ID                    int64
 	Number                string
@@ -57,6 +69,7 @@ type Visit struct {
 	CompletedAt           *time.Time
 	ClinicianID           *int64
 	ClinicianName         *string
+	Vitals                Vitals
 }
 
 type VisitFilter struct {
@@ -72,6 +85,7 @@ type CheckIn struct {
 	DepartmentID int64
 	ESI          int
 	ArrivalMode  string
+	Vitals       Vitals
 }
 
 // VisitPatch holds the editable fields. Nil means "leave unchanged".
@@ -80,6 +94,7 @@ type VisitPatch struct {
 	DepartmentID *int64
 	ArrivalMode  *string
 	ClinicianID  **int64 // non-nil pointer to nil = unassign
+	Vitals       *Vitals // non-nil = replace the recorded complaint and vitals
 }
 
 // Event is published on NotifyChannel and streamed to live clients.
@@ -111,7 +126,8 @@ const visitSelect = `
 SELECT v.id, v.visit_number, v.patient_id, p.full_name, p.hospital_number,
        v.department_id, d.code, d.name, v.esi, v.status, v.arrival_mode,
        v.checked_in_at, v.called_at, v.started_at, v.completed_at, v.assigned_clinician_id,
-       CASE WHEN u.id IS NULL THEN NULL ELSE COALESCE(NULLIF(u.display_name, ''), u.username) END
+       CASE WHEN u.id IS NULL THEN NULL ELSE COALESCE(NULLIF(u.display_name, ''), u.username) END,
+       v.chief_complaint, v.pain_score, v.heart_rate, v.resp_rate, v.spo2, v.temperature_c::float8, v.systolic_bp, v.avpu
 FROM patients_visit v
 JOIN patients_patient p ON p.id = v.patient_id
 JOIN patients_department d ON d.id = v.department_id
@@ -122,7 +138,9 @@ func scanVisit(row pgx.Row) (Visit, error) {
 	var status string
 	err := row.Scan(&v.ID, &v.Number, &v.PatientID, &v.PatientName, &v.PatientHospitalNumber,
 		&v.DepartmentID, &v.DepartmentCode, &v.DepartmentName, &v.ESI, &status, &v.ArrivalMode,
-		&v.CheckedInAt, &v.CalledAt, &v.StartedAt, &v.CompletedAt, &v.ClinicianID, &v.ClinicianName)
+		&v.CheckedInAt, &v.CalledAt, &v.StartedAt, &v.CompletedAt, &v.ClinicianID, &v.ClinicianName,
+		&v.Vitals.Complaint, &v.Vitals.PainScore, &v.Vitals.HeartRate, &v.Vitals.RespRate, &v.Vitals.SpO2,
+		&v.Vitals.TemperatureC, &v.Vitals.SystolicBP, &v.Vitals.AVPU)
 	v.Status = flow.Status(status)
 	return v, err
 }
@@ -222,12 +240,16 @@ func (s *Store) CheckIn(ctx context.Context, actor User, in CheckIn) (Visit, err
 			return ValidationError{"patient": {"This patient already has an active visit."}}
 		}
 		if err := tx.QueryRow(ctx, `
-			INSERT INTO patients_visit (visit_number, patient_id, department_id, esi, status, arrival_mode, checked_in_at)
-			VALUES ($1, $2, $3, $4, $5, $6, now()) RETURNING id`,
-			newVisitNumber(), in.PatientID, in.DepartmentID, in.ESI, string(flow.Waiting), in.ArrivalMode).Scan(&id); err != nil {
+			INSERT INTO patients_visit (visit_number, patient_id, department_id, esi, status, arrival_mode, checked_in_at,
+				chief_complaint, pain_score, heart_rate, resp_rate, spo2, temperature_c, systolic_bp, avpu)
+			VALUES ($1, $2, $3, $4, $5, $6, now(), $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+			newVisitNumber(), in.PatientID, in.DepartmentID, in.ESI, string(flow.Waiting), in.ArrivalMode,
+			in.Vitals.Complaint, in.Vitals.PainScore, in.Vitals.HeartRate, in.Vitals.RespRate, in.Vitals.SpO2,
+			in.Vitals.TemperatureC, in.Vitals.SystolicBP, in.Vitals.AVPU).Scan(&id); err != nil {
 			return err
 		}
-		if err := audit(ctx, tx, actor, "visit.checked_in", id, map[string]any{"esi": in.ESI, "department": code}); err != nil {
+		// Clinical text stays out of the audit log; record only that vitals were taken.
+		if err := audit(ctx, tx, actor, "visit.checked_in", id, map[string]any{"esi": in.ESI, "department": code, "vitals_recorded": in.Vitals.recorded()}); err != nil {
 			return err
 		}
 		return notify(ctx, tx, Event{VisitID: id, Action: "checked_in", Status: string(flow.Waiting), Department: code})
@@ -258,7 +280,9 @@ func (s *Store) UpdateVisit(ctx context.Context, actor User, id int64, p VisitPa
 		set := func(column, field string, v any) {
 			args = append(args, v)
 			sets = append(sets, fmt.Sprintf("%s = $%d", column, len(args)))
-			fields = append(fields, field)
+			if len(fields) == 0 || fields[len(fields)-1] != field {
+				fields = append(fields, field)
+			}
 		}
 		if p.ESI != nil {
 			set("esi", "esi", *p.ESI)
@@ -290,6 +314,17 @@ func (s *Store) UpdateVisit(ctx context.Context, actor User, id int64, p VisitPa
 				}
 			}
 			set("assigned_clinician_id", "assigned_clinician", *p.ClinicianID)
+		}
+		if p.Vitals != nil {
+			v := p.Vitals
+			set("chief_complaint", "chief_complaint", v.Complaint)
+			for _, f := range []struct {
+				column string
+				value  any
+			}{{"pain_score", v.PainScore}, {"heart_rate", v.HeartRate}, {"resp_rate", v.RespRate}, {"spo2", v.SpO2},
+				{"temperature_c", v.TemperatureC}, {"systolic_bp", v.SystolicBP}, {"avpu", v.AVPU}} {
+				set(f.column, "vitals", f.value)
+			}
 		}
 		if len(sets) == 0 {
 			return nil
@@ -418,6 +453,12 @@ func (s *Store) ReportRows(ctx context.Context, since, until time.Time) ([]Repor
 		out = append(out, r)
 	}
 	return out, rows.Err()
+}
+
+// recorded reports whether any observation was taken.
+func (v Vitals) recorded() bool {
+	return v.Complaint != "" || v.PainScore != nil || v.HeartRate != nil || v.RespRate != nil || v.SpO2 != nil ||
+		v.TemperatureC != nil || v.SystolicBP != nil || v.AVPU != ""
 }
 
 func statuses(list []flow.Status) []string {

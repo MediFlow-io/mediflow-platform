@@ -3,7 +3,7 @@ import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { actionsFor } from "../../lib/roles";
-import { Empty, ErrorBox, EsiBadge, Loading, PageHeader, StatusBadge, formatTime } from "../ui";
+import { Empty, ErrorBox, EsiBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals } from "../ui";
 
 export default function QueuePage() {
   const { user } = useAuth();
@@ -68,7 +68,11 @@ export default function QueuePage() {
             <tbody>
               {active.data.map((v) => (
                 <tr key={v.id}>
-                  <td><strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div></td>
+                  <td>
+                    <strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div>
+                    {v.chief_complaint && <div className="small">{v.chief_complaint}</div>}
+                    {formatVitals(v) && <div className="small muted">{formatVitals(v)}</div>}
+                  </td>
                   <td>{v.department_name}</td>
                   <td><StatusBadge status={v.status} /></td>
                   <td>{v.assigned_clinician_name || "—"}</td>
@@ -95,7 +99,10 @@ export default function QueuePage() {
               {queue.data.map((q) => (
                 <tr key={q.id} className={q.priority <= 2 ? "row-urgent" : undefined}>
                   <td>{q.position}</td>
-                  <td><strong>{q.fullName}</strong><div className="mono small">{q.hospitalNumber}</div></td>
+                  <td>
+                    <strong>{q.fullName}</strong><div className="mono small">{q.hospitalNumber}</div>
+                    {q.chiefComplaint && <div className="small muted">{q.chiefComplaint}</div>}
+                  </td>
                   <td><EsiBadge esi={q.priority} /></td>
                   <td>{deptName(q.department)}</td>
                   <td>{q.arrival}</td>
