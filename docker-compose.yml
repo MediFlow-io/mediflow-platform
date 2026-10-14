@@ -1,4 +1,5 @@
-# Full MediFlow stack: `docker compose up --build`, then open http://localhost:8080
+# Full MediFlow stack: `docker compose up --build`, then open http://localhost:8080 (staff)
+# and http://localhost:8081 (student dashboard).
 # Every value has a development default. Override any of them in a .env file next to
 # this one (see .env.example). Defaults are for local development ONLY.
 name: mediflow
@@ -51,6 +52,19 @@ services:
       EMERGENCY_NUMBER: ${EMERGENCY_NUMBER:-112}
     # No published port: only the api service may reach it.
 
+  patient-flow:
+    # Go service that owns visits, the queue and the flow dashboard (ADR-0002).
+    build: ./apps/patient-flow
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mediflow}
+      POSTGRES_USER: ${POSTGRES_USER:-mediflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediflow-dev-only}
+      POSTGRES_HOST: db
+      JWKS_URL: http://api:8000/api/auth/jwks
+      TIME_ZONE: ${TIME_ZONE:-Africa/Lagos}
+    depends_on:
+      api: {condition: service_healthy}   # the API runs the schema migrations
+
   gateway:
     build: ./apps/gateway
     environment:
@@ -60,12 +74,25 @@ services:
       api: {condition: service_healthy}
 
   web:
-    build: ./apps/web
+    build:
+      context: ./apps/web
+      args:
+        VITE_STUDENT_DASHBOARD_URL: http://localhost:${STUDENT_PORT:-8081}
     ports:
       - "${WEB_PORT:-8080}:80"
     depends_on:
       api: {condition: service_healthy}
       gateway: {condition: service_healthy}
+      patient-flow: {condition: service_healthy}
+
+  student:
+    build: ./apps/student-dashboard
+    ports:
+      - "${STUDENT_PORT:-8081}:80"
+    depends_on:
+      api: {condition: service_healthy}
+      gateway: {condition: service_healthy}
+      patient-flow: {condition: service_healthy}
 
 volumes:
   postgres_data:

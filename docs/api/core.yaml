@@ -1,0 +1,218 @@
+openapi: 3.0.3
+info:
+  title: MediFlow Core API — patients, visits, queue, dashboard, staff
+  version: "1.1"
+  description: |
+    Django core API. Every route needs a JWT bearer token or a session, unless marked otherwise.
+    Roles and permissions are listed per operation. Auth routes live in auth.yaml; AI routes in ai.yaml.
+    Every read or write of an identifiable patient record is written to the audit log (search text is not stored).
+
+    Served by two services behind one origin (ADR-0002): /api/visits*, /api/queue* and /api/dashboard come from
+    the Go patient-flow service (apps/patient-flow); everything else from Django (apps/core-api).
+servers:
+  - url: /
+security: [{bearer: []}, {session: []}]
+paths:
+  /api/patients:
+    get:
+      summary: List/search patients (admin, doctor, nurse, reception, lab, pharmacy)
+      parameters:
+        - {name: search, in: query, schema: {type: string}, description: Name, hospital number or phone}
+      responses:
+        "200": {description: Patients, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Patient"}}}}}
+        "403": {$ref: "#/components/responses/Error"}
+    post:
+      summary: Register a patient (admin, doctor, nurse, reception)
+      requestBody: {content: {application/json: {schema: {$ref: "#/components/schemas/Patient"}}}}
+      responses:
+        "201": {description: Created}
+        "400": {$ref: "#/components/responses/Error"}
+  /api/patients/{id}:
+    parameters: [{name: id, in: path, required: true, schema: {type: integer}}]
+    get: {summary: One patient (audited), responses: {"200": {description: Patient}}}
+    patch:
+      summary: Update a patient (admin, doctor, reception). `linkedAccount` links/unlinks a login account.
+      responses: {"200": {description: Updated}, "400": {$ref: "#/components/responses/Error"}}
+    delete: {summary: Delete a patient (admin, doctor, reception), responses: {"204": {description: Deleted}}}
+  /api/visits:
+    get:
+      summary: List visits (check-ins)
+      parameters:
+        - {name: status, in: query, schema: {type: string}, example: "waiting,called"}
+        - {name: department, in: query, schema: {type: string}, example: opd}
+        - {name: patient, in: query, schema: {type: integer}}
+        - {name: today, in: query, schema: {type: boolean}}
+      responses: {"200": {description: Visits, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Visit"}}}}}}
+    post:
+      summary: Check a patient in (admin, doctor, nurse, reception). A patient can have only one active visit.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [patient, department, esi]
+              properties:
+                patient: {type: integer}
+                department: {type: integer}
+                esi: {type: integer, minimum: 1, maximum: 5}
+                arrival_mode: {type: string, example: walk_in}
+      responses: {"201": {description: Checked in}, "400": {$ref: "#/components/responses/Error"}}
+  /api/visits/{id}/{action}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      - {name: action, in: path, required: true, schema: {type: string, enum: [call, start, complete, cancel]}}
+    post:
+      summary: Move a visit through the patient flow. The only way to change `status`.
+      description: |
+        | action | from | to | roles |
+        |---|---|---|---|
+        | call | waiting | called | admin, doctor, nurse, reception |
+        | start | waiting, called | in_progress | admin, doctor, nurse (assigns the clinician) |
+        | complete | in_progress | completed | admin, doctor, nurse |
+        | cancel | waiting, called, in_progress | cancelled | admin, doctor, nurse, reception |
+        Runs in a transaction with a row lock, so two people cannot apply conflicting actions.
+      responses:
+        "200": {description: Updated visit, content: {application/json: {schema: {$ref: "#/components/schemas/Visit"}}}}
+        "403": {$ref: "#/components/responses/Error"}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {description: Not allowed from the current status}
+  /api/queue:
+    get:
+      summary: Waiting patients, ESI first then arrival (admin, doctor, nurse, reception, lab, pharmacy)
+      parameters: [{name: department, in: query, schema: {type: string}}]
+      responses:
+        "200":
+          description: Queue
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: integer}
+                    visitId: {type: string}
+                    fullName: {type: string}
+                    hospitalNumber: {type: string}
+                    department: {type: string}
+                    priority: {type: integer}
+                    position: {type: integer}
+                    waitingMinutes: {type: integer, description: Time actually waited so far}
+                    wait: {type: string, example: "12 min"}
+  /api/queue/events:
+    get:
+      summary: Live queue changes as server-sent events (same roles as /api/queue). Served by Go.
+      description: |
+        `event: visit` with data `{"visitId", "action", "status", "department"}` after every committed
+        check-in, edit or lifecycle action; `: ping` comments keep the connection alive. Clients refetch
+        /api/queue on each event. Send the bearer token in the Authorization header (fetch + stream
+        reader), never in the URL.
+      responses:
+        "200": {description: Event stream, content: {text/event-stream: {}}}
+  /api/dashboard:
+    get:
+      summary: Today's metrics from visit records (all staff)
+      responses:
+        "200":
+          description: Metrics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patientsToday: {type: integer}
+                  currentlyWaiting: {type: integer}
+                  inConsultation: {type: integer}
+                  completedToday: {type: integer}
+                  emergencyCases: {type: integer, description: Waiting with ESI 1–2}
+                  averageWaitMinutes: {type: integer, nullable: true, description: Check-in to called/started, today}
+                  longestCurrentWaitMinutes: {type: integer, nullable: true}
+                  byDepartment: {type: array, items: {type: object}}
+                  byStatus: {type: object, additionalProperties: {type: integer}}
+  /api/me/health:
+    get:
+      summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.
+      responses:
+        "200":
+          description: Own record, or linked=false
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  linked: {type: boolean}
+                  patient: {type: object, nullable: true}
+                  activeVisit:
+                    type: object
+                    nullable: true
+                    properties:
+                      visitNumber: {type: string}
+                      department: {type: string}
+                      status: {type: string, enum: [waiting, called, in_progress]}
+                      patientsAhead: {type: integer, nullable: true}
+                  visits: {type: array, items: {type: object}}
+  /api/users:
+    get:
+      summary: Staff accounts (admin only)
+      parameters:
+        - {name: role, in: query, schema: {type: string}}
+        - {name: active, in: query, schema: {type: boolean}}
+        - {name: search, in: query, schema: {type: string}}
+      responses: {"200": {description: Users}}
+    post:
+      summary: Create an account (admin only). Password must pass the password rules.
+      responses: {"201": {description: Created}, "400": {$ref: "#/components/responses/Error"}}
+  /api/users/{id}:
+    patch:
+      summary: Update role, details, is_active or password (admin only). Deactivating signs the user out everywhere. There is no DELETE.
+      responses: {"200": {description: Updated}, "400": {$ref: "#/components/responses/Error"}}
+  /api/departments:
+    get: {summary: Departments (any signed-in user), responses: {"200": {description: Departments}}}
+    post: {summary: Create a department (admin only), responses: {"201": {description: Created}}}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+    session: {type: apiKey, in: cookie, name: sessionid}
+  responses:
+    Error:
+      description: Error
+      content: {application/json: {schema: {type: object, properties: {detail: {type: string}}}}}
+  schemas:
+    Patient:
+      type: object
+      required: [fullName, sex, phone]
+      properties:
+        id: {type: integer, readOnly: true}
+        hospitalNumber: {type: string, readOnly: true}
+        fullName: {type: string}
+        dateOfBirth: {type: string, format: date, nullable: true}
+        sex: {type: string, enum: [Male, Female, Other]}
+        phone: {type: string}
+        address: {type: string}
+        nextOfKin: {type: string}
+        nextOfKinPhone: {type: string}
+        allergies: {type: string}
+        medicalHistory: {type: string}
+        complaint: {type: string}
+        diagnosis: {type: string}
+        treatment: {type: string}
+        notes: {type: string}
+        linkedAccount: {type: string, writeOnly: true, description: "Username to link; empty string unlinks"}
+        linkedAccountName: {type: string, readOnly: true, nullable: true}
+    Visit:
+      type: object
+      properties:
+        id: {type: integer}
+        visit_number: {type: string}
+        patient: {type: integer}
+        patient_name: {type: string}
+        department: {type: integer}
+        department_code: {type: string}
+        department_name: {type: string}
+        esi: {type: integer}
+        status: {type: string, enum: [waiting, called, in_progress, completed, cancelled], readOnly: true}
+        checked_in_at: {type: string, format: date-time}
+        called_at: {type: string, format: date-time, nullable: true}
+        started_at: {type: string, format: date-time, nullable: true}
+        completed_at: {type: string, format: date-time, nullable: true}
+        assigned_clinician_name: {type: string, nullable: true}

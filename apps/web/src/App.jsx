@@ -2,15 +2,12 @@ import { useState } from "react";
 import { AuthProvider, useAuth } from "./api/AuthContext";
 import LoginForm from "./components/LoginForm";
 import StudentRegisterForm from "./components/StudentRegisterForm";
-import StaffRegisterForm from "./components/StaffRegisterForm";
 import ChangePasswordForm from "./components/ChangePasswordForm";
+import StaffApp from "./components/staff/StaffApp";
+import { Loading } from "./components/ui";
 
-const TABS = [
-  { id: "login", label: "Sign in" },
-  { id: "student", label: "Student registration" },
-  { id: "staff", label: "Staff registration" },
-  { id: "password", label: "Change password" },
-];
+// Where students view their own record (apps/student-dashboard). Configurable per deployment.
+const STUDENT_DASHBOARD_URL = import.meta.env.VITE_STUDENT_DASHBOARD_URL ?? "http://localhost:5174";
 
 function Header() {
   return (
@@ -21,93 +18,57 @@ function Header() {
   );
 }
 
-function AuthScreen() {
+function SignInScreen() {
   const [tab, setTab] = useState("login");
-  const { user, logout, isAuthenticated } = useAuth();
-
-  if (isAuthenticated) {
-    return (
-      <div className="card">
-        <Header />
-        <h1>Signed in</h1>
-        <p className="subtitle">
-          {user?.name ? `${user.name} · ${user.role}` : "Session active."}
-        </p>
-
-        <div className="success-box">
-          Access token stored. You can now reach protected MediFlow services
-          through the gateway.
-        </div>
-
-        <details style={{ marginBottom: 20 }}>
-          <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--slate)" }}>
-            Change my password
-          </summary>
-          <div style={{ marginTop: 16 }}>
-            <ChangePasswordForm />
-          </div>
-        </details>
-
-        {user?.role === "Admin" && (
-          <details style={{ marginBottom: 20 }}>
-            <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--slate)" }}>
-              Register a staff member
-            </summary>
-            <div style={{ marginTop: 16 }}>
-              <StaffRegisterForm />
-            </div>
-          </details>
-        )}
-
-        <button className="btn-link" onClick={logout}>
-          Sign out
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className="card">
       <Header />
       <h1>Hospital operations sign-in</h1>
-      <p className="subtitle">
-        Use your matriculation number or staff ID to access MediFlow.
-      </p>
-
-      <div className="tabs">
-        {TABS.filter((t) => t.id !== "password").map((t) => (
-          <button
-            key={t.id}
-            className={`tab ${tab === t.id ? "active" : ""}`}
-            onClick={() => setTab(t.id)}
-            type="button"
-          >
-            {t.label}
-          </button>
-        ))}
+      <p className="subtitle">Use your matriculation number or staff ID to access MediFlow.</p>
+      <div className="tabs" role="tablist">
+        <button type="button" role="tab" aria-selected={tab === "login"} className={`tab ${tab === "login" ? "active" : ""}`} onClick={() => setTab("login")}>
+          Sign in
+        </button>
+        <button type="button" role="tab" aria-selected={tab === "student"} className={`tab ${tab === "student" ? "active" : ""}`} onClick={() => setTab("student")}>
+          Student registration
+        </button>
       </div>
-
       {tab === "login" && <LoginForm />}
       {tab === "student" && <StudentRegisterForm onDone={() => setTab("login")} />}
-      {tab === "staff" && (
-        <>
-          <p className="hint" style={{ marginBottom: 16 }}>
-            Staff registration requires an administrator to already be signed
-            in. Sign in as an admin first, then use "Register staff member"
-            from the account panel.
-          </p>
-        </>
-      )}
+      <p className="hint" style={{ marginTop: 16 }}>Staff accounts are created by an administrator.</p>
     </div>
   );
+}
+
+function StudentScreen() {
+  const { user, logout } = useAuth();
+  return (
+    <div className="card">
+      <Header />
+      <h1>Hello, {user.name}</h1>
+      <p className="subtitle">Your health record, visits and queue position are in the student dashboard.</p>
+      <a className="btn" href={STUDENT_DASHBOARD_URL}>Open student dashboard</a>
+      <details style={{ margin: "20px 0" }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, color: "var(--slate)" }}>Change my password</summary>
+        <div style={{ marginTop: 16 }}><ChangePasswordForm /></div>
+      </details>
+      <button type="button" className="btn-link" onClick={logout}>Sign out</button>
+    </div>
+  );
+}
+
+function Root() {
+  const { status, user } = useAuth();
+  if (status === "checking") return <div className="shell"><Loading label="Restoring your session…" /></div>;
+  if (status !== "signed-in") return <div className="shell"><SignInScreen /></div>;
+  if (user.role === "student") return <div className="shell"><StudentScreen /></div>;
+  return <StaffApp />;
 }
 
 export default function App() {
   return (
     <AuthProvider>
-      <div className="shell">
-        <AuthScreen />
-      </div>
+      <Root />
     </AuthProvider>
   );
 }

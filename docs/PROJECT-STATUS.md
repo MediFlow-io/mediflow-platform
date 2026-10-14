@@ -21,10 +21,11 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 
 | Part | Technology | Location | Status |
 |---|---|---|---|
-| Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, visits, queue, dashboard, AI proxy, health check |
+| Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, staff, departments, student record, AI proxy, health check |
+| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits**: check-in, call/start/complete/cancel, queue, live events (SSE), flow dashboard |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
-| Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Auth screens only; dashboards not built yet |
+| Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Staff app: dashboard, queue with call/start/complete/cancel, patients (search, register, edit, link student), check-in with AI triage suggestion, staff management, account |
 | First-aid UI | React + TypeScript | `apps/first-aid-ui/` | ✅ Static first-aid and wellbeing tips |
 | FUTA staff frontend | Plain HTML/JS | `apps/futa-web/` | Legacy; uses session login against the core API |
 | Infrastructure & team automation | Docker Compose, GitHub Actions, `scripts/team_status.py` | `docker-compose.yml`, `.github/workflows/ci.yml` | ✅ One-command stack and CI (see the caveat in 4.1) |
@@ -55,13 +56,18 @@ flowchart LR
             AIP["ai<br/>auth · role · rate limit · audit"]
         end
 
+        FLOW["Go patient-flow<br/>visits · queue · live events<br/>dashboard"]
+
         AI["FastAPI AI service<br/>triage suggestion · first aid<br/>(internal only)"]
         DB[("PostgreSQL 16")]
     end
 
     REACT --> NGINX
     NGINX -- "/api/auth/*" --> GW
-    NGINX -- "/api/*" --> Core
+    NGINX -- "/api/visits · /api/queue · /api/dashboard" --> FLOW
+    NGINX -- "other /api/*" --> Core
+    FLOW -. "JWKS" .-> AUTH
+    FLOW --> DB
     GW -- "proxied request" --> AUTH
     GW -. "GET /api/auth/jwks<br/>(public key, cached)" .-> AUTH
     LEGACY -- "/api/* · session cookie" --> Core
@@ -267,7 +273,7 @@ cd mediflow-platform
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>** and sign in with a demo account (4.4). Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
+Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>**. Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
 
 To change settings, copy `.env.example` to `.env` and edit it. Compose reads it automatically.
 
@@ -275,7 +281,14 @@ To change settings, copy `.env.example` to `.env` and edit it. Compose reads it 
 
 ### 4.2 Option B: run each service locally (development)
 
-Prerequisites: Python 3.12+, Go 1.22+, Node.js 18+. Commands are for **Git Bash** (macOS/Linux: use `bin` instead of `Scripts`).
+Prerequisites: Python 3.12+, Go 1.22+, Node.js 18+ (22.12+ for the student dashboard), and **PostgreSQL**.
+The Go patient-flow service shares the core API's database, so local development now needs PostgreSQL
+instead of the SQLite default. Any local PostgreSQL works. Point both services at it:
+
+```bash
+export POSTGRES_DB=mediflow POSTGRES_USER=mediflow POSTGRES_PASSWORD=yourpassword POSTGRES_HOST=localhost POSTGRES_PORT=5432
+```
+ Commands are for **Git Bash** (macOS/Linux: use `bin` instead of `Scripts`).
 
 > Django does **not** read `.env`. Locally, the defaults work as they are.
 
@@ -311,13 +324,27 @@ cd apps/gateway
 go run .
 ```
 
+**Terminal 3b: Go patient-flow → http://localhost:8090** (visits, queue, dashboard)
+```bash
+cd apps/patient-flow
+go run ./cmd/patient-flow        # uses the same POSTGRES_* variables
+```
+
 **Terminal 4: React client → http://localhost:5173**
 ```bash
 cd apps/web
 npm run dev
 ```
 
-Open <http://localhost:5173> and sign in as `nurse` / `nurse123`. Stop any service with `Ctrl+C`. Without Terminal 2, everything works except the AI endpoints, which return `503`.
+Open <http://localhost:5173> and sign in as `nurse` / `nurse123`. Stop any service with `Ctrl+C`.
+
+**Optional, Terminal 5: student dashboard → http://localhost:5174** (needs Node 20.19+ or 22.12+)
+```bash
+cd apps/student-dashboard
+npm install
+npm run dev
+```
+A student sees data only after reception links their matric number to a patient record (Patients → Edit → *Linked account*). Without Terminal 2, everything works except the AI endpoints, which return `503`.
 
 > **Git Bash on Windows:** use forward slashes in paths (`cd /c/Users/you/mediflow-platform`). Backslashes are escape characters there.
 
@@ -358,6 +385,7 @@ Created by `seed_demo` (automatically in Docker). **Local development only.**
 (cd apps/core-api && python manage.py test)
 (cd apps/ai-service && pytest -q)
 (cd apps/gateway && go test ./...)
+(cd apps/patient-flow && go test ./...)   # add TEST_DATABASE_URL=...mediflow_test for the PostgreSQL tests
 (cd apps/web && npm run build)
 pytest -q scripts/tests
 ```
@@ -383,7 +411,10 @@ All are listed with defaults in [`.env.example`](../.env.example).
 | `AI_ENV` / `EMERGENCY_NUMBER` | `development` / `112` | AI service mode; emergency number in answers |
 | `WEB_PORT` | `8080` | Host port for the Docker stack |
 | Gateway: `DJANGO_BASE_URL`, `ALLOWED_ORIGIN`, `PORT` | `http://localhost:8000`, `http://localhost:5173`, `8080` | Gateway settings |
-| `VITE_GATEWAY_URL` | `http://localhost:8080` (empty in Docker = same origin) | Where the React client sends auth requests |
+| `VITE_GATEWAY_URL` / `VITE_API_URL` | empty = same origin | Where the web app sends auth / API requests. Leave empty: Nginx (Docker) and the Vite dev proxy route `/api/auth/*` to the gateway and `/api/*` to Django |
+| `MEDIFLOW_GATEWAY` / `MEDIFLOW_API` / `MEDIFLOW_FLOW` | `http://localhost:8080` / `:8000` / `:8090` | Vite dev-proxy targets (`npm run dev` only) |
+| `JWKS_URL` / `TIME_ZONE` (patient-flow) | `http://localhost:8000/api/auth/jwks` / `Africa/Lagos` | Where Go gets signing keys; the hospital's local day |
+| `VITE_STUDENT_DASHBOARD_URL` | `http://localhost:5174` | Where the web app sends students after sign-in |
 
 Generate production JWT keys:
 ```bash
@@ -473,6 +504,7 @@ mediflow-platform/
 │   │   ├── config/               # settings.py, jwt_keys.py, urls.py
 │   │   └── tests/                # test_api.py, test_auth.py, test_ai.py
 │   ├── gateway/                  # Go auth gateway: main.go, jwt.go, tests, Dockerfile
+│   ├── patient-flow/             # Go: visits, queue, live events, flow dashboard (ADR-0002)
 │   ├── ai-service/               # FastAPI: app/{main,triage,first_aid,schemas}.py, tests/
 │   ├── web/                      # React client + Dockerfile + nginx.conf (public entry point)
 │   ├── first-aid-ui/             # React + TS first-aid tips UI

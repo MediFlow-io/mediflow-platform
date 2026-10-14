@@ -12,6 +12,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - 'apps/ai-service/**'
+'area: patient-flow':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/patient-flow/**'
 'area: web':
   - changed-files:
       - any-glob-to-any-file:
@@ -44,6 +48,9 @@
           - 'apps/core-api/Dockerfile'
           - 'apps/gateway/Dockerfile'
           - 'apps/ai-service/Dockerfile'
+          - 'apps/patient-flow/Dockerfile'
+          - 'apps/student-dashboard/Dockerfile'
+          - 'apps/student-dashboard/nginx.conf'
 'area: docs':
   - changed-files:
       - any-glob-to-any-file:
