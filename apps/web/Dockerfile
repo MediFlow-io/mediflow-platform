@@ -9,6 +9,9 @@ COPY src ./src
 # Empty = same origin: the browser calls /api/... on this Nginx.
 ARG VITE_GATEWAY_URL=""
 ENV VITE_GATEWAY_URL=$VITE_GATEWAY_URL
+# Where students are sent after signing in (the student dashboard container).
+ARG VITE_STUDENT_DASHBOARD_URL=""
+ENV VITE_STUDENT_DASHBOARD_URL=$VITE_STUDENT_DASHBOARD_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine

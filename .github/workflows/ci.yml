@@ -125,6 +125,9 @@ jobs:
           set -euo pipefail
           curl -fsS http://localhost:8080/healthz
           curl -fsS http://localhost:8080/api/health
+          # Student dashboard: its own page and API routing
+          curl -fsS http://localhost:8081/ | grep -q '<div id="root">'
+          curl -fsS http://localhost:8081/api/health
           ACCESS=$(curl -fsS -H 'Content-Type: application/json' \
             -d '{"unique_id":"nurse","password":"nurse123"}' \
             http://localhost:8080/api/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["access"])')
