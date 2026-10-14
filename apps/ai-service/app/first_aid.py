@@ -18,6 +18,7 @@ class Topic:
     emergency: bool = False
 
 
+
 # Checked in order; the first match wins, so more specific topics come first.
 TOPICS: tuple[Topic, ...] = (
     Topic("unresponsive", ("unresponsive", "unconscious", "not breathing", "no pulse", "cpr", "collapsed"),
