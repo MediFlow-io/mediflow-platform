@@ -17,6 +17,7 @@ from apps.accounts.views import (
 )
 from apps.patients.views import DepartmentViewSet, PatientViewSet
 from apps.operations.views import HealthView
+from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, TriageSuggestView
 
 router = DefaultRouter()
@@ -42,6 +43,7 @@ urlpatterns = [
     path("api/auth/jwks", JwksView.as_view()), path(".well-known/jwks.json", JwksView.as_view()),
     path("api/auth/change-password", ChangePasswordView.as_view()), path("api/auth/change-password/", ChangePasswordView.as_view()),
     path("api/health", HealthView.as_view()),
+    path("api/audit-logs", AuditLogListView.as_view()), path("api/audit-logs/", AuditLogListView.as_view()),
     path("api/ai/ask", AskView.as_view()), path("api/ai/ask/", AskView.as_view()),
     path("api/ai/triage", TriageSuggestView.as_view()), path("api/ai/triage/", TriageSuggestView.as_view()),
     path("api/", include(router.urls)),

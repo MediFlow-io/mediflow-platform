@@ -312,3 +312,20 @@ func waitEvent(t *testing.T, sub <-chan []byte) Event {
 	}
 	return Event{}
 }
+
+func TestReportRowsRange(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	v, err := f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.patient, DepartmentID: f.opd, ESI: 2})
+	must(t, err)
+	_, err = f.s.Transition(ctx, f.nurse, v.ID, "start")
+	must(t, err)
+	rows, err := f.s.ReportRows(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	must(t, err)
+	if len(rows) != 1 || rows[0].DepartmentName != "Outpatient" || rows[0].ESI != 2 || rows[0].StartedAt == nil {
+		t.Fatalf("report rows: %+v", rows)
+	}
+	if rows, _ := f.s.ReportRows(ctx, time.Now().Add(time.Hour), time.Now().Add(2*time.Hour)); len(rows) != 0 {
+		t.Fatalf("out-of-range visits must not be returned: %+v", rows)
+	}
+}

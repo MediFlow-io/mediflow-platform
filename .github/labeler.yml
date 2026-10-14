@@ -16,6 +16,10 @@
   - changed-files:
       - any-glob-to-any-file:
           - 'apps/patient-flow/**'
+'area: admin-console':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/admin-console/**'
 'area: web':
   - changed-files:
       - any-glob-to-any-file:
@@ -51,6 +55,7 @@
           - 'apps/patient-flow/Dockerfile'
           - 'apps/student-dashboard/Dockerfile'
           - 'apps/student-dashboard/nginx.conf'
+          - 'apps/admin-console/Dockerfile'
 'area: docs':
   - changed-files:
       - any-glob-to-any-file:

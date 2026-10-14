@@ -121,6 +121,24 @@ jobs:
         working-directory: apps/patient-flow
         run: go test -race -count=1 ./...
 
+  admin-console:
+    name: Admin console (Laravel)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/admin-console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          coverage: none
+      - run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Security advisories
+        run: composer audit --no-interaction
+      - run: cp .env.example .env && php artisan key:generate
+      - run: php artisan test
+
   node-apps:
     name: Node app (${{ matrix.app }})
     runs-on: ubuntu-latest
@@ -157,7 +175,7 @@ jobs:
 
   stack:
     name: Docker stack smoke test
-    needs: [core-api, ai-service, gateway, patient-flow, node-apps]
+    needs: [core-api, ai-service, gateway, patient-flow, admin-console, node-apps]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -179,6 +197,9 @@ jobs:
           # Queue and dashboard are served by the Go patient-flow service through Nginx
           curl -fsS -H "Authorization: Bearer $ACCESS" http://localhost:8080/api/queue
           curl -fsS -H "Authorization: Bearer $ACCESS" http://localhost:8080/api/dashboard | grep -q currentlyWaiting
+          # Admin console (Laravel) is up and serves its sign-in page
+          curl -fsS http://localhost:8082/up
+          curl -fsS http://localhost:8082/login | grep -q 'Admin console'
           # The AI service must not be reachable from outside the stack.
           if curl -fsS http://localhost:8080/ai/health 2>/dev/null | grep -q model_version; then
             echo "AI service is publicly exposed"; exit 1

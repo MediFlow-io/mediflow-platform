@@ -28,6 +28,10 @@ paths = ["apps/ai-service/"]
 title = "Patient flow (Go): visits, queue, live events"
 paths = ["apps/patient-flow/"]
 
+[areas.admin-console]
+title = "Admin console (Laravel): audit log, reports, departments"
+paths = ["apps/admin-console/"]
+
 [areas.web]
 title = "Web client (React)"
 paths = ["apps/web/"]
@@ -52,7 +56,8 @@ paths = ["apps/core-api/apps/accounts/", "apps/gateway/jwt.go", "incoming/securi
 title = "DevOps & CI"
 paths = ["docker-compose.yml", ".github/workflows/", "apps/web/Dockerfile", "apps/web/nginx.conf",
          "apps/core-api/Dockerfile", "apps/gateway/Dockerfile", "apps/ai-service/Dockerfile",
-         "apps/patient-flow/Dockerfile", "apps/student-dashboard/Dockerfile", "apps/student-dashboard/nginx.conf"]
+         "apps/patient-flow/Dockerfile", "apps/student-dashboard/Dockerfile", "apps/student-dashboard/nginx.conf",
+         "apps/admin-console/Dockerfile"]
 
 [areas.docs]
 title = "Documentation"
@@ -62,7 +67,7 @@ paths = ["docs/", "README.md", "CONTRIBUTING.md"]
 [[member]]
 github = "gifted-g1"
 role = "Project lead & maintainer"
-areas = ["core-api", "gateway", "patient-flow", "ai-service", "web", "devops"]
+areas = ["core-api", "gateway", "patient-flow", "admin-console", "ai-service", "web", "devops"]
 task = "Monorepo migration, auth (JWT/RBAC) and AI service"
 
 [[member]]

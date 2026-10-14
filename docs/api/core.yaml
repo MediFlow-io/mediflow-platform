@@ -129,6 +129,67 @@ paths:
                   longestCurrentWaitMinutes: {type: integer, nullable: true}
                   byDepartment: {type: array, items: {type: object}}
                   byStatus: {type: object, additionalProperties: {type: integer}}
+  /api/reports/flow:
+    get:
+      summary: Multi-day flow report (admin only). Served by Go. Used by the admin console.
+      parameters:
+        - {name: from, in: query, schema: {type: string, format: date}, description: "Default: 6 days before `to`"}
+        - {name: to, in: query, schema: {type: string, format: date}, description: "Default: today. Max range 92 days"}
+      responses:
+        "200":
+          description: Totals plus per-day (every day listed), per-department and per-ESI rows
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  from: {type: string}
+                  to: {type: string}
+                  timeZone: {type: string, example: Africa/Lagos}
+                  totals: {$ref: "#/components/schemas/FlowStats"}
+                  days: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {date: {type: string}}}]}}
+                  byDepartment: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {department: {type: string}}}]}}
+                  byEsi: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {esi: {type: integer}}}]}}
+        "400": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+  /api/audit-logs:
+    get:
+      summary: Read the shared audit log (admin only). Served by Django. Viewing is itself audited.
+      parameters:
+        - {name: action, in: query, schema: {type: string}, description: Prefix match, e.g. "patient."}
+        - {name: actor, in: query, schema: {type: string}, description: Username}
+        - {name: entity_type, in: query, schema: {type: string}}
+        - {name: entity_id, in: query, schema: {type: string}}
+        - {name: since, in: query, schema: {type: string, format: date}}
+        - {name: until, in: query, schema: {type: string, format: date}, description: Inclusive}
+        - {name: page, in: query, schema: {type: integer}}
+        - {name: page_size, in: query, schema: {type: integer, maximum: 200, default: 50}}
+      responses:
+        "200":
+          description: Newest first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count: {type: integer}
+                  next: {type: string, nullable: true}
+                  previous: {type: string, nullable: true}
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: {type: integer}
+                        created_at: {type: string, format: date-time}
+                        actor: {type: string, nullable: true}
+                        actor_role: {type: string, nullable: true}
+                        action: {type: string, example: patient.viewed}
+                        entity_type: {type: string}
+                        entity_id: {type: string}
+                        details: {type: object}
+        "400": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
   /api/me/health:
     get:
       summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.
@@ -178,6 +239,14 @@ components:
       description: Error
       content: {application/json: {schema: {type: object, properties: {detail: {type: string}}}}}
   schemas:
+    FlowStats:
+      type: object
+      properties:
+        checkIns: {type: integer}
+        completed: {type: integer}
+        cancelled: {type: integer}
+        averageWaitMinutes: {type: integer, nullable: true, description: Check-in to called/started}
+        averageConsultationMinutes: {type: integer, nullable: true, description: Started to completed}
     Patient:
       type: object
       required: [fullName, sex, phone]

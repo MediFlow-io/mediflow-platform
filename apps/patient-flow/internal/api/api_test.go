@@ -47,6 +47,9 @@ type fakeStore struct {
 	gotCheckIn  store.CheckIn
 	gotPatch    store.VisitPatch
 	transitions []string
+	reportRows  []store.ReportRow
+	reportSince time.Time
+	reportUntil time.Time
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -95,6 +98,11 @@ func (f *fakeStore) Transition(_ context.Context, actor store.User, id int64, ac
 }
 func (f *fakeStore) DashboardData(context.Context, time.Time, time.Time) ([]store.DashboardRow, []store.DashboardRow, error) {
 	return f.today, f.active, nil
+}
+
+func (f *fakeStore) ReportRows(_ context.Context, since, until time.Time) ([]store.ReportRow, error) {
+	f.reportSince, f.reportUntil = since, until
+	return f.reportRows, nil
 }
 
 func newFixture() (*fakeStore, *Server) {

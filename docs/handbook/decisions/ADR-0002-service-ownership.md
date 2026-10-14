@@ -24,7 +24,7 @@ noted, read its tables without writing to them.
 | **Queue, live updates, flow dashboard** | **Go** | `apps/patient-flow` |
 | AI triage and first-aid answers | FastAPI | `apps/ai-service` (called via Django) |
 | Audit log | Shared, append-only | every service inserts; nobody updates or deletes |
-| Admin console and reporting | Laravel *(planned)* | reads through the APIs; owns only its own report and config data |
+| Admin console and reporting | Laravel | `apps/admin-console`: reads through the APIs, no database of its own |
 | Edge auth checks | Go gateway | `apps/gateway` |
 
 Technology choices:

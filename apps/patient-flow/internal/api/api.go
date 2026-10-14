@@ -31,6 +31,7 @@ type Store interface {
 	UpdateVisit(ctx context.Context, actor store.User, id int64, p store.VisitPatch) (store.Visit, error)
 	Transition(ctx context.Context, actor store.User, id int64, action string) (store.Visit, error)
 	DashboardData(ctx context.Context, since, until time.Time) (today, active []store.DashboardRow, err error)
+	ReportRows(ctx context.Context, since, until time.Time) ([]store.ReportRow, error)
 }
 
 type TokenVerifier interface {
@@ -59,6 +60,7 @@ func (s *Server) Routes() http.Handler {
 	mux.Handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
 	mux.Handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
 	mux.Handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
+	mux.Handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
 	return s.recoverer(s.logRequests(mux))
 }
 
