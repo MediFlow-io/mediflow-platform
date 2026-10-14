@@ -17,6 +17,7 @@ export default defineConfig({
       '/api/visits': { target: FLOW, changeOrigin: true },
       '/api/queue': { target: FLOW, changeOrigin: true },
       '/api/dashboard': { target: FLOW, changeOrigin: true },
+      '/api/reports': { target: FLOW, changeOrigin: true },
       '/api': { target: API, changeOrigin: true },
     },
   },

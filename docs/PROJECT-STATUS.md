@@ -22,6 +22,7 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 | Part | Technology | Location | Status |
 |---|---|---|---|
 | Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, staff, departments, student record, AI proxy, health check |
+| **Admin console** | **Laravel 12** (PHP, Blade) | `apps/admin-console/` | ✅ Audit-log viewer, flow reports + CSV, department settings. Admins only, no own database |
 | **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits**: check-in, call/start/complete/cancel, queue, live events (SSE), flow dashboard |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
@@ -273,7 +274,7 @@ cd mediflow-platform
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>**. Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
+Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>** and the admin console at **<http://localhost:8082>** (sign in as `admin`). Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
 
 To change settings, copy `.env.example` to `.env` and edit it. Compose reads it automatically.
 
@@ -328,6 +329,13 @@ go run .
 ```bash
 cd apps/patient-flow
 go run ./cmd/patient-flow        # uses the same POSTGRES_* variables
+```
+
+**Terminal 3c: Laravel admin console → http://localhost:8082** (PHP 8.2+, Composer)
+```bash
+cd apps/admin-console
+composer install && cp .env.example .env && php artisan key:generate   # first time only
+php artisan serve --port=8082
 ```
 
 **Terminal 4: React client → http://localhost:5173**
@@ -385,7 +393,8 @@ Created by `seed_demo` (automatically in Docker). **Local development only.**
 (cd apps/core-api && python manage.py test)
 (cd apps/ai-service && pytest -q)
 (cd apps/gateway && go test ./...)
-(cd apps/patient-flow && go test ./...)   # add TEST_DATABASE_URL=...mediflow_test for the PostgreSQL tests
+(cd apps/patient-flow && go test ./...)
+(cd apps/admin-console && php artisan test)   # add TEST_DATABASE_URL=...mediflow_test for the PostgreSQL tests
 (cd apps/web && npm run build)
 pytest -q scripts/tests
 ```
@@ -504,7 +513,8 @@ mediflow-platform/
 │   │   ├── config/               # settings.py, jwt_keys.py, urls.py
 │   │   └── tests/                # test_api.py, test_auth.py, test_ai.py
 │   ├── gateway/                  # Go auth gateway: main.go, jwt.go, tests, Dockerfile
-│   ├── patient-flow/             # Go: visits, queue, live events, flow dashboard (ADR-0002)
+│   ├── patient-flow/             # Go: visits, queue, live events, flow dashboard, reports (ADR-0002)
+│   ├── admin-console/            # Laravel: audit log, flow reports, departments (admins)
 │   ├── ai-service/               # FastAPI: app/{main,triage,first_aid,schemas}.py, tests/
 │   ├── web/                      # React client + Dockerfile + nginx.conf (public entry point)
 │   ├── first-aid-ui/             # React + TS first-aid tips UI

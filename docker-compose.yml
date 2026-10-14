@@ -1,5 +1,5 @@
-# Full MediFlow stack: `docker compose up --build`, then open http://localhost:8080 (staff)
-# and http://localhost:8081 (student dashboard).
+# Full MediFlow stack: `docker compose up --build`, then open http://localhost:8080 (staff),
+# http://localhost:8081 (student dashboard) and http://localhost:8082 (admin console).
 # Every value has a development default. Override any of them in a .env file next to
 # this one (see .env.example). Defaults are for local development ONLY.
 name: mediflow
@@ -91,6 +91,23 @@ services:
       - "${STUDENT_PORT:-8081}:80"
     depends_on:
       api: {condition: service_healthy}
+      gateway: {condition: service_healthy}
+      patient-flow: {condition: service_healthy}
+
+  admin-console:
+    # Laravel admin console: audit log, flow reports, departments. No database of its own (ADR-0002).
+    build: ./apps/admin-console
+    environment:
+      # DEVELOPMENT key only. Set ADMIN_APP_KEY to your own (php artisan key:generate --show) anywhere real.
+      APP_KEY: ${ADMIN_APP_KEY:-base64:osk/ww6NYdHsotpiJCn6x8V+o7Qf/WULCDS2LZUwjqQ=}
+      APP_DEBUG: ${ADMIN_APP_DEBUG:-false}
+      APP_URL: http://localhost:${ADMIN_PORT:-8082}
+      MEDIFLOW_GATEWAY_URL: http://gateway:8080
+      MEDIFLOW_API_URL: http://api:8000
+      MEDIFLOW_FLOW_URL: http://patient-flow:8090
+    ports:
+      - "${ADMIN_PORT:-8082}:80"
+    depends_on:
       gateway: {condition: service_healthy}
       patient-flow: {condition: service_healthy}
 

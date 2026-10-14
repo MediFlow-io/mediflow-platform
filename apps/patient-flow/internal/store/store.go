@@ -387,6 +387,39 @@ func (s *Store) DashboardData(ctx context.Context, since, until time.Time) (toda
 	return today, active, err
 }
 
+// ReportRow is one visit's data for multi-day flow reports.
+type ReportRow struct {
+	DepartmentName string
+	ESI            int
+	Status         flow.Status
+	CheckedInAt    time.Time
+	CalledAt       *time.Time
+	StartedAt      *time.Time
+	CompletedAt    *time.Time
+}
+
+// ReportRows returns visits checked in within [since, until), oldest first.
+func (s *Store) ReportRows(ctx context.Context, since, until time.Time) ([]ReportRow, error) {
+	rows, err := s.pool.Query(ctx, `SELECT d.name, v.esi, v.status, v.checked_in_at, v.called_at, v.started_at, v.completed_at
+		FROM patients_visit v JOIN patients_department d ON d.id = v.department_id
+		WHERE v.checked_in_at >= $1 AND v.checked_in_at < $2 ORDER BY v.checked_in_at`, since, until)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ReportRow{}
+	for rows.Next() {
+		var r ReportRow
+		var st string
+		if err := rows.Scan(&r.DepartmentName, &r.ESI, &st, &r.CheckedInAt, &r.CalledAt, &r.StartedAt, &r.CompletedAt); err != nil {
+			return nil, err
+		}
+		r.Status = flow.Status(st)
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
 func statuses(list []flow.Status) []string {
 	out := make([]string, len(list))
 	for i, s := range list {
