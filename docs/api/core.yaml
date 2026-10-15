@@ -56,6 +56,9 @@ paths:
                 department: {type: integer}
                 esi: {type: integer, minimum: 1, maximum: 5}
                 arrival_mode: {type: string, example: walk_in}
+                chief_complaint: {type: string, maxLength: 500, description: Saved with the visit (not written to the audit log)}
+                pain_score: {type: integer, minimum: 0, maximum: 10, nullable: true}
+                vitals: {$ref: "#/components/schemas/Vitals"}
       responses: {"201": {description: Checked in}, "400": {$ref: "#/components/responses/Error"}}
   /api/visits/{id}/{action}:
     parameters:
@@ -98,6 +101,7 @@ paths:
                     priority: {type: integer}
                     position: {type: integer}
                     waitingMinutes: {type: integer, description: Time actually waited so far}
+                    chiefComplaint: {type: string}
                     wait: {type: string, example: "12 min"}
   /api/queue/events:
     get:
@@ -211,6 +215,18 @@ paths:
                       department: {type: string}
                       status: {type: string, enum: [waiting, called, in_progress]}
                       patientsAhead: {type: integer, nullable: true}
+                  latestVitals:
+                    type: object
+                    nullable: true
+                    description: Most recent recorded vital signs (numbers only; the complaint text is not shown to patients)
+                    properties:
+                      recordedAt: {type: string, format: date-time}
+                      heartRate: {type: integer, nullable: true}
+                      respRate: {type: integer, nullable: true}
+                      spo2: {type: integer, nullable: true}
+                      temperatureC: {type: number, nullable: true}
+                      systolicBp: {type: integer, nullable: true}
+                      painScore: {type: integer, nullable: true}
                   visits: {type: array, items: {type: object}}
   /api/users:
     get:
@@ -285,3 +301,16 @@ components:
         started_at: {type: string, format: date-time, nullable: true}
         completed_at: {type: string, format: date-time, nullable: true}
         assigned_clinician_name: {type: string, nullable: true}
+        chief_complaint: {type: string}
+        pain_score: {type: integer, nullable: true}
+        vitals: {$ref: "#/components/schemas/Vitals"}
+    Vitals:
+      type: object
+      description: Triage observations (same shape the AI triage endpoint accepts)
+      properties:
+        heart_rate: {type: integer, minimum: 0, maximum: 300, nullable: true}
+        resp_rate: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        spo2: {type: integer, minimum: 0, maximum: 100, nullable: true}
+        temperature_c: {type: number, minimum: 25, maximum: 45, nullable: true}
+        systolic_bp: {type: integer, minimum: 0, maximum: 300, nullable: true}
+        avpu: {type: string, enum: ["", A, V, P, U]}

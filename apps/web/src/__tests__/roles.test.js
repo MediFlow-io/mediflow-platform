@@ -33,3 +33,15 @@ describe("actionsFor", () => {
     expect(names("doctor", "completed")).toEqual([]);
   });
 });
+
+import { formatVitals } from "../components/ui";
+
+describe("formatVitals", () => {
+  it("summarises only what was recorded", () => {
+    expect(formatVitals({ vitals: { heart_rate: 112, spo2: 95, temperature_c: 37.4, avpu: "A" }, pain_score: 6 }))
+      .toBe("HR 112 · SpO₂ 95% · 37.4 °C · pain 6/10");
+    expect(formatVitals({ vitals: { avpu: "V" } })).toBe("AVPU V");
+    expect(formatVitals({ vitals: {}, pain_score: null })).toBe("");
+    expect(formatVitals(null)).toBe("");
+  });
+});

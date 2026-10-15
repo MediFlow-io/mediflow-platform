@@ -329,3 +329,30 @@ func TestReportRowsRange(t *testing.T) {
 		t.Fatalf("out-of-range visits must not be returned: %+v", rows)
 	}
 }
+
+func TestVitalsRoundTrip(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	hr, pain, temp := 118, 7, 38.6
+	v, err := f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.patient, DepartmentID: f.opd, ESI: 2,
+		Vitals: Vitals{Complaint: "chest pain", PainScore: &pain, HeartRate: &hr, TemperatureC: &temp, AVPU: "V"}})
+	must(t, err)
+	got := v.Vitals
+	if got.Complaint != "chest pain" || *got.HeartRate != 118 || *got.PainScore != 7 || *got.TemperatureC != 38.6 || got.AVPU != "V" || got.SpO2 != nil {
+		t.Fatalf("vitals not stored: %+v", got)
+	}
+	var details string
+	must(t, f.pool.QueryRow(ctx, `SELECT details::text FROM operations_auditlog WHERE action = 'visit.checked_in'`).Scan(&details))
+	if strings.Contains(details, "chest pain") || !strings.Contains(details, `"vitals_recorded": true`) {
+		t.Fatalf("audit must note vitals without clinical text: %s", details)
+	}
+	spo2 := 91
+	updated, err := f.s.UpdateVisit(ctx, f.reception, v.ID, VisitPatch{Vitals: &Vitals{Complaint: "chest pain, worse", SpO2: &spo2}})
+	must(t, err)
+	if updated.Vitals.HeartRate != nil || *updated.Vitals.SpO2 != 91 || updated.Vitals.Complaint != "chest pain, worse" {
+		t.Fatalf("patch should replace the whole set: %+v", updated.Vitals)
+	}
+	// A check-in without vitals still works (text columns are NOT NULL in the schema).
+	_, err = f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.otherPatnt, DepartmentID: f.opd, ESI: 4})
+	must(t, err)
+}

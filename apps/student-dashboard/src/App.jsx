@@ -121,13 +121,41 @@ function CareJourney({ visit }) {
 
 const splitList = (text) => (text || "").split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
 
+function LatestVitals({ vitals }) {
+  const items = vitals ? [
+    ["Heart rate", vitals.heartRate, "bpm"],
+    ["Temperature", vitals.temperatureC, "°C"],
+    ["Oxygen (SpO₂)", vitals.spo2, "%"],
+    ["Breathing rate", vitals.respRate, "/min"],
+    ["Blood pressure (systolic)", vitals.systolicBp, "mmHg"],
+    ["Pain", vitals.painScore, "/10"],
+  ].filter(([, value]) => value !== null && value !== undefined) : [];
+  return (
+    <Card title="Last recorded vitals" right={vitals && <span className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(vitals.recordedAt)}</span>}>
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: "#5B6F8F" }}>No vital signs recorded yet. The nurse records them when you check in.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {items.map(([label, value, unit]) => (
+            <div key={label} className="rounded-2xl p-4" style={{ background: C.mist }}>
+              <div className="text-xs" style={{ color: "#5B6F8F" }}>{label}</div>
+              <div className="text-2xl font-bold" style={{ color: C.ink }}>{value}<span className="text-sm font-medium ml-1">{unit}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function Home({ health, go }) {
-  const { patient, activeVisit, visits } = health;
+  const { patient, activeVisit, visits, latestVitals } = health;
   const allergies = splitList(patient?.allergies);
   const last = visits.find((v) => v.status === "completed");
   return (
     <div className="grid gap-5">
       <CareJourney visit={activeVisit} />
+      <LatestVitals vitals={latestVitals} />
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="Your visits" right={<button onClick={() => go("history")} className="text-sm font-semibold" style={{ color: C.cobalt }}>See all</button>} className="lg:col-span-2">
           <div className="flex items-center gap-6">
