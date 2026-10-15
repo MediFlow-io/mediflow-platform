@@ -21,6 +21,9 @@ change.
 | `GET /api/queue` | staff with patient access | Waiting patients: ESI first, then arrival. Real minutes waited |
 | `GET /api/queue/events` | staff with patient access | Server-sent events (`event: visit`) on every change, after commit |
 | `GET /api/dashboard` | all staff | Today's flow numbers |
+| `GET /api/reports/flow` | admin | Multi-day report (used by the admin console) |
+| `GET /api/appointments`, `POST /api/appointments/{id}/{confirm,decline,cancel,check_in}` | front desk; patients may cancel their own | Appointment requests, bookings and same-day check-in (creates the visit in the same transaction) |
+| `GET /api/appointments/mine`, `POST /api/appointments` | patients (own record) and staff | A patient's own appointments; request a slot (patients) or book one (staff) |
 | `GET /healthz` | anyone | Database check |
 
 ## How it works
@@ -52,6 +55,7 @@ JWKS_URL=http://localhost:8000/api/auth/jwks go run ./cmd/patient-flow     # :80
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `mediflow-core` / `mediflow` | Must match the core API |
 | `TIME_ZONE` | `Africa/Lagos` | Defines "today" and the queue's HH:MM |
 | `PORT` | `8090` | |
+| `CLINIC_HOURS` / `CLINIC_DAYS` | `08:00-16:00` / `Mon-Fri` | Bookable appointment hours (15-minute slots, up to 60 days ahead) |
 
 ## Test
 

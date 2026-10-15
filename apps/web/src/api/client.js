@@ -190,4 +190,7 @@ export const mediflowApi = {
   users: (params) => request(`/api/users${qs(params)}`),
   updateUser: (id, payload) => request(`/api/users/${id}`, { method: "PATCH", body: payload }),
   triageSuggestion: (payload) => request("/api/ai/triage", { method: "POST", body: payload }),
+  appointments: (params) => request(`/api/appointments${qs(params)}`),
+  bookAppointment: (payload) => request("/api/appointments", { method: "POST", body: payload }),
+  appointmentAction: (id, action, body = {}) => request(`/api/appointments/${id}/${action}`, { method: "POST", body }),
 };

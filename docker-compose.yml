@@ -62,6 +62,8 @@ services:
       POSTGRES_HOST: db
       JWKS_URL: http://api:8000/api/auth/jwks
       TIME_ZONE: ${TIME_ZONE:-Africa/Lagos}
+      CLINIC_HOURS: ${CLINIC_HOURS:-08:00-16:00}
+      CLINIC_DAYS: ${CLINIC_DAYS:-Mon-Fri}
     depends_on:
       api: {condition: service_healthy}   # the API runs the schema migrations
 

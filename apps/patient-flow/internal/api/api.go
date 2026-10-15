@@ -32,6 +32,10 @@ type Store interface {
 	Transition(ctx context.Context, actor store.User, id int64, action string) (store.Visit, error)
 	DashboardData(ctx context.Context, since, until time.Time) (today, active []store.DashboardRow, err error)
 	ReportRows(ctx context.Context, since, until time.Time) ([]store.ReportRow, error)
+	PatientIDForUser(ctx context.Context, userID int64) (int64, error)
+	ListAppointments(ctx context.Context, f store.AppointmentFilter) ([]store.Appointment, error)
+	CreateAppointment(ctx context.Context, actor store.User, in store.NewAppointment) (store.Appointment, error)
+	AppointmentAction(ctx context.Context, actor store.User, id int64, action string, up store.AppointmentUpdate) (store.Appointment, error)
 }
 
 type TokenVerifier interface {
@@ -46,6 +50,7 @@ type Server struct {
 	Log       *slog.Logger
 	Now       func() time.Time
 	Heartbeat time.Duration // keep-alive interval for the event stream
+	Schedule  flow.Schedule // bookable clinic hours for appointments
 }
 
 func (s *Server) Routes() http.Handler {
@@ -64,6 +69,11 @@ func (s *Server) Routes() http.Handler {
 	handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
 	handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
 	handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
+	handle("GET /api/appointments", s.authed(flow.CanManageAppointments, s.listAppointments))
+	// Patients use these for their own record; staff for anyone. Ownership is checked in the store.
+	handle("GET /api/appointments/mine", s.authed(anyone, s.myAppointments))
+	handle("POST /api/appointments", s.authed(anyone, s.createAppointment))
+	handle("POST /api/appointments/{id}/{action}", s.authed(anyone, s.appointmentAction))
 	return s.recoverer(s.logRequests(mux))
 }
 
