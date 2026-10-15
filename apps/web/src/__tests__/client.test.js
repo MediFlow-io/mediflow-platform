@@ -7,7 +7,7 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 
-const { errorMessage, request, setTokens, getAccessToken, onSessionExpired, ApiError } = await import("../api/client");
+const { errorMessage, request, setTokens, getAccessToken, onSessionExpired, ApiError, streamEvents } = await import("../api/client");
 
 const json = (status, body) => ({ ok: status < 400, status, json: async () => body });
 
@@ -64,5 +64,33 @@ describe("request", () => {
   it("turns network failures into a readable error", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
     await expect(request("/api/dashboard")).rejects.toThrow("Can't reach the MediFlow server");
+  });
+});
+
+describe("streamEvents", () => {
+  const streamOf = (chunks) =>
+    new ReadableStream({ start(c) { chunks.forEach((x) => c.enqueue(new TextEncoder().encode(x))); c.close(); } });
+
+  it("parses events split across chunks and ignores keep-alive comments", async () => {
+    setTokens({ access: "A1", refresh: "R1" });
+    const fetch = vi.fn(async () => ({ ok: true, status: 200, body: streamOf([": connected\n\n", "event: visit\nda", 'ta: {"visitId":4}\n\n', ": ping\n\n"]) }));
+    vi.stubGlobal("fetch", fetch);
+    const events = [];
+    const onOpen = vi.fn();
+    await streamEvents("/api/queue/events", { onEvent: (n, d) => events.push([n, d]), onOpen });
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(events).toEqual([["visit", { visitId: 4 }]]);
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBe("Bearer A1");
+    expect(fetch.mock.calls[0][0]).toBe("/api/queue/events"); // token never in the URL
+  });
+
+  it("refreshes an expired token once, then rejects on failure", async () => {
+    setTokens({ access: "old", refresh: "R1" });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce({ ok: false, status: 401, body: null })
+      .mockResolvedValueOnce(json(200, { access: "new", refresh: "R2" }))
+      .mockResolvedValueOnce({ ok: false, status: 503, body: null }));
+    await expect(streamEvents("/api/queue/events", { onEvent: () => {} })).rejects.toThrow("Live updates unavailable (503)");
+    expect(getAccessToken()).toBe("new");
   });
 });

@@ -1,15 +1,21 @@
+import { useRef } from "react";
 import { mediflowApi } from "../../api/client";
 import { useApi } from "../../hooks/useApi";
-import { Empty, ErrorBox, Loading, PageHeader } from "../ui";
+import { useQueueEvents } from "../../hooks/useQueueEvents";
+import { Empty, ErrorBox, LiveBadge, Loading, PageHeader } from "../ui";
 
 const minutes = (value) => (value === null || value === undefined ? "—" : `${value} min`);
 
 export default function DashboardPage() {
-  const { data, error, loading, reload } = useApi(() => mediflowApi.dashboard(), [], { refreshMs: 30000 });
+  const reloadRef = useRef(null);
+  const live = useQueueEvents(() => reloadRef.current?.(), { debounceMs: 1000 });
+  const { data, error, loading, reload } = useApi(() => mediflowApi.dashboard(), [], { refreshMs: live ? 60000 : 30000 });
+  reloadRef.current = reload;
 
   return (
     <>
-      <PageHeader title="Today" subtitle="Live numbers from today's check-ins. Updates every 30 seconds.">
+      <PageHeader title="Today" subtitle="Numbers from today's check-ins.">
+        <LiveBadge live={live} />
         <button type="button" className="btn btn-secondary" onClick={reload} disabled={loading}>
           {loading ? "Refreshing…" : "Refresh"}
         </button>

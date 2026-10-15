@@ -126,6 +126,51 @@ export const authApi = {
   },
 };
 
+/**
+ * Read a server-sent event stream with the bearer token in a header (EventSource can't send headers,
+ * and tokens must never go in URLs, where proxies log them). Calls onEvent(name, data) per event and
+ * onOpen() once connected. Resolves when the stream ends; rejects on errors. Abort with `signal`.
+ */
+export async function streamEvents(path, { onEvent, onOpen, signal, retried = false }) {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Accept: "text/event-stream", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    signal,
+  });
+  if (res.status === 401 && !retried && (await refreshAccessToken())) {
+    return streamEvents(path, { onEvent, onOpen, signal, retried: true });
+  }
+  if (!res.ok || !res.body) throw new ApiError(`Live updates unavailable (${res.status}).`, res.status, null);
+  onOpen?.();
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let end;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      let name = "message";
+      const data = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) name = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      } // lines starting with ":" are keep-alive comments
+      if (data.length) {
+        let parsed = data.join("\n");
+        try {
+          parsed = JSON.parse(parsed);
+        } catch {
+          // non-JSON payloads are passed through as text
+        }
+        onEvent(name, parsed);
+      }
+    }
+  }
+}
+
 const qs = (params) => {
   const entries = Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "");
   return entries.length ? `?${new URLSearchParams(entries)}` : "";
