@@ -322,3 +322,16 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 
 .live-on { background: #dcf3ee; color: var(--teal); }
 .live-off { background: #fff1d6; color: #8a5b00; }
+
+/* appointments */
+.appt-requested { background: #fff1d6; color: #8a5b00; }
+.appt-confirmed { background: #dce8ff; color: #1d3f8a; }
+.appt-checked_in { background: #dcf3ee; color: var(--teal); }
+.appt-declined, .appt-cancelled { background: var(--error-bg); color: var(--error); }
+.row-form td { background: var(--paper); }
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.inline-form label { display: grid; gap: 4px; font-size: 12px; }
+.inline-form input, .inline-form select { width: auto; }
+.inline-form .grow { flex: 1; min-width: 240px; }
+.inline-form .grow input { width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

@@ -22,6 +22,7 @@ noted, read its tables without writing to them.
 | Departments | Django (admin) | `apps/core-api` |
 | **Visits: check-in, call/start/complete/cancel** | **Go** | `apps/patient-flow` |
 | **Queue, live updates, flow dashboard** | **Go** | `apps/patient-flow` |
+| **Appointments: requests, bookings, same-day check-in** | **Go** | `apps/patient-flow` |
 | AI triage and first-aid answers | FastAPI | `apps/ai-service` (called via Django) |
 | Audit log | Shared, append-only | every service inserts; nobody updates or deletes |
 | Admin console and reporting | Laravel | `apps/admin-console`: reads through the APIs, no database of its own |

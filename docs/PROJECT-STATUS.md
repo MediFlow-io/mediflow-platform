@@ -23,7 +23,7 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 |---|---|---|---|
 | Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, staff, departments, student record, AI proxy, health check |
 | **Admin console** | **Laravel 12** (PHP, Blade) | `apps/admin-console/` | ✅ Audit-log viewer, flow reports + CSV, department settings. Admins only, no own database |
-| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits**: check-in, call/start/complete/cancel, queue, live events (SSE), flow dashboard |
+| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits and appointments**: check-in with vitals, call/start/complete/cancel, queue, live events (SSE), flow dashboard and reports, appointment requests/bookings/same-day check-in |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
 | Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Staff app: dashboard, queue with call/start/complete/cancel, patients (search, register, edit, link student), check-in with AI triage suggestion, staff management, account |

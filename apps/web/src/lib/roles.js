@@ -7,6 +7,7 @@ const sets = {
   checkIn: ["admin", "doctor", "nurse", "reception"],
   triageSuggestion: ["admin", "doctor", "nurse"],
   manageStaff: ["admin"],
+  manageAppointments: ["admin", "doctor", "nurse", "reception"],
   dashboard: ["admin", "doctor", "nurse", "reception", "lab", "pharmacy", "it"],
 };
 

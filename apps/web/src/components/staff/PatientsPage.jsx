@@ -4,6 +4,7 @@ import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { can } from "../../lib/roles";
 import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
+import BookAppointmentForm from "./BookAppointmentForm";
 import CheckInForm from "./CheckInForm";
 import PatientForm from "./PatientForm";
 
@@ -97,6 +98,10 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
   const p = patient.data;
   const activeVisit = (visits.data || []).find((v) => ["waiting", "called", "in_progress"].includes(v.status));
 
+  if (mode === "book") {
+    return <BookAppointmentForm patient={p} onCancel={() => onMode("view")}
+      onDone={(a) => onSaved(`Appointment booked for ${p.fullName}: ${a.date} at ${a.time} (${a.department_name}).`)} />;
+  }
   if (mode === "checkin") {
     return <CheckInForm patient={p} onCancel={() => onMode("view")}
       onDone={(v) => onSaved(`${p.fullName} checked in to ${v.department_name} (ESI ${v.esi}).`)} />;
@@ -112,6 +117,9 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
         <div className="page-actions">
           {can(user, "checkIn") && !activeVisit && (
             <button type="button" className="btn" onClick={() => onMode("checkin")}>Check in</button>
+          )}
+          {can(user, "manageAppointments") && (
+            <button type="button" className="btn btn-secondary" onClick={() => onMode("book")}>Book appointment</button>
           )}
           {canEdit && !editing && <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>Edit</button>}
         </div>
