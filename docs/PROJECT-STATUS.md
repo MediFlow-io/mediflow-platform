@@ -446,6 +446,20 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 
 ---
 
+### 4.7b Browser tests (Playwright)
+
+`e2e/` holds end-to-end tests that drive real browsers through the staff app, student dashboard and admin
+console: registration, AI triage, check-in with vitals, the queue lifecycle, live updates, appointments,
+staff management and the admin console. CI runs them against the full Docker stack on every PR.
+
+```bash
+cd e2e && npm install && npx playwright install chromium
+npx playwright test          # against the local dev servers (5173 / 5174 / 8082)
+WEB_URL=http://localhost:8080 STUDENT_URL=http://localhost:8081 ADMIN_URL=http://localhost:8082 npx playwright test   # Docker
+```
+The appointment test needs the clinic open at that moment; for local runs start patient-flow with
+`CLINIC_HOURS=00:00-23:59 CLINIC_DAYS=Sun-Sat` (CI does this).
+
 ### 4.8 Monitoring
 
 Every backend service exposes Prometheus metrics at `/metrics`. Only `/api/*` is routed by the public
