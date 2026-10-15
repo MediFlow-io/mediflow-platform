@@ -12,13 +12,15 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "loc
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai",
+    "django_prometheus", "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai",
 ]
+# Prometheus middleware wraps everything else (first and last) to time whole requests.
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware", "django.middleware.security.SecurityMiddleware",
+    "django_prometheus.middleware.PrometheusBeforeMiddleware", "corsheaders.middleware.CorsMiddleware", "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [], "APP_DIRS": True,

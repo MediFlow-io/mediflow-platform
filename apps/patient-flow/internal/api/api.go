@@ -49,18 +49,21 @@ type Server struct {
 }
 
 func (s *Server) Routes() http.Handler {
+	m := newMetrics(s)
 	mux := http.NewServeMux()
+	handle := func(pattern string, h http.Handler) { mux.Handle(pattern, m.instrument(pattern, h)) }
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.Handle("GET /api/visits", s.authed(flow.CanReadVisits, s.listVisits))
-	mux.Handle("POST /api/visits", s.authed(flow.CanCheckIn, s.checkIn))
-	mux.Handle("GET /api/visits/{id}", s.authed(flow.CanReadVisits, s.getVisit))
-	mux.Handle("PATCH /api/visits/{id}", s.authed(flow.CanEditVisit, s.updateVisit))
+	mux.Handle("GET /metrics", m.handler())
+	handle("GET /api/visits", s.authed(flow.CanReadVisits, s.listVisits))
+	handle("POST /api/visits", s.authed(flow.CanCheckIn, s.checkIn))
+	handle("GET /api/visits/{id}", s.authed(flow.CanReadVisits, s.getVisit))
+	handle("PATCH /api/visits/{id}", s.authed(flow.CanEditVisit, s.updateVisit))
 	// Per-action role rules live in flow.Check; any check-in role may reach the route.
-	mux.Handle("POST /api/visits/{id}/{action}", s.authed(flow.CanCheckIn, s.transition))
-	mux.Handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
-	mux.Handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
-	mux.Handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
-	mux.Handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
+	handle("POST /api/visits/{id}/{action}", s.authed(flow.CanCheckIn, s.transition))
+	handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
+	handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
+	handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
+	handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
 	return s.recoverer(s.logRequests(mux))
 }
 

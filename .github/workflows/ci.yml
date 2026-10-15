@@ -200,6 +200,10 @@ jobs:
           # Admin console (Laravel) is up and serves its sign-in page
           curl -fsS http://localhost:8082/up
           curl -fsS http://localhost:8082/login | grep -q 'Admin console'
+          # Internal metrics must not be reachable through the public entry point.
+          if curl -fsS http://localhost:8080/metrics 2>/dev/null | grep -q '_total'; then
+            echo "/metrics is publicly exposed"; exit 1
+          fi
           # The AI service must not be reachable from outside the stack.
           if curl -fsS http://localhost:8080/ai/health 2>/dev/null | grep -q model_version; then
             echo "AI service is publicly exposed"; exit 1
