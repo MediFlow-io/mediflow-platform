@@ -32,6 +32,15 @@ export function StatusBadge({ status }) {
   return <span className={`badge status-${status}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
+/** Shows whether live updates are connected (otherwise the page polls). */
+export function LiveBadge({ live }) {
+  return (
+    <span className={`badge ${live ? "live-on" : "live-off"}`} role="status" title={live ? "Updates appear instantly" : "Reconnecting; refreshing every few seconds meanwhile"}>
+      {live ? "● Live" : "○ Reconnecting…"}
+    </span>
+  );
+}
+
 export function PageHeader({ title, subtitle, children }) {
   return (
     <header className="page-header">

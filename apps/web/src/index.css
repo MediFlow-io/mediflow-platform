@@ -319,3 +319,6 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
   .span-2 { grid-column: auto; }
   .table { display: block; overflow-x: auto; }
 }
+
+.live-on { background: #dcf3ee; color: var(--teal); }
+.live-off { background: #fff1d6; color: #8a5b00; }
