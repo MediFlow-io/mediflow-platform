@@ -446,6 +446,19 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 
 ---
 
+### 4.8 Monitoring
+
+Every backend service exposes Prometheus metrics at `/metrics`. Only `/api/*` is routed by the public
+Nginx, so these endpoints are reachable from the internal network only (CI checks this).
+
+| Service | Endpoint | Highlights |
+|---|---|---|
+| Django core API | `:8000/metrics` | requests and responses by view, status and latency (`django-prometheus`) |
+| Go patient-flow | `:8090/metrics` | `patient_flow_http_requests_total` / `_duration_seconds` by route pattern, `patient_flow_check_ins_total`, `patient_flow_visit_transitions_total{action}`, `patient_flow_event_stream_clients` |
+| AI service | `:8001/metrics` | `mediflow_ai_requests_total`, latency, triage suggestions by ESI |
+
+Labels use route patterns, never raw URLs, so record IDs don't leak into metrics.
+
 ## 5. What's left
 
 ### 5.1 Decisions needed

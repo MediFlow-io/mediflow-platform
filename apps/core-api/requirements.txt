@@ -4,3 +4,4 @@ django-cors-headers>=4.4,<5
 psycopg[binary]>=3.2,<4
 gunicorn>=23,<24
 djangorestframework-simplejwt[crypto]>=5.3,<6
+django-prometheus>=2.3,<3
