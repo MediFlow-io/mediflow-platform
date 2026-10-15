@@ -57,7 +57,7 @@ title = "DevOps & CI"
 paths = ["docker-compose.yml", ".github/workflows/", "apps/web/Dockerfile", "apps/web/nginx.conf",
          "apps/core-api/Dockerfile", "apps/gateway/Dockerfile", "apps/ai-service/Dockerfile",
          "apps/patient-flow/Dockerfile", "apps/student-dashboard/Dockerfile", "apps/student-dashboard/nginx.conf",
-         "apps/admin-console/Dockerfile"]
+         "apps/admin-console/Dockerfile", "e2e/"]
 
 [areas.docs]
 title = "Documentation"

@@ -56,6 +56,7 @@
           - 'apps/student-dashboard/Dockerfile'
           - 'apps/student-dashboard/nginx.conf'
           - 'apps/admin-console/Dockerfile'
+          - 'e2e/**'
 'area: docs':
   - changed-files:
       - any-glob-to-any-file:
