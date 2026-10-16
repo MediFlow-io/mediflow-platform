@@ -243,6 +243,42 @@ paths:
         | check_in | confirmed | staff, on the appointment's day | `esi`, optional `chief_complaint`, `pain_score`, `vitals` |
         Check-in creates the visit in the same transaction. Another patient's appointment returns 404.
       responses: {"200": {description: Updated}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}, "404": {$ref: "#/components/responses/Error"}, "409": {description: Not allowed from the current status}}
+  /api/notifications:
+    get:
+      summary: The caller's own notifications, newest first (Flask notification service)
+      description: |
+        Created from patient-flow events: "You've been called", "You're checked in", "You're next",
+        appointment booked/confirmed/declined/cancelled for patients; new requests and patient cancellations
+        for front-desk staff (admin, doctor, nurse, reception).
+      parameters:
+        - {name: unread, in: query, schema: {type: string, enum: ["1", "true"]}, description: Only unread}
+        - {name: limit, in: query, schema: {type: integer, default: 30, maximum: 100}}
+        - {name: before, in: query, schema: {type: integer}, description: "Paging: ids lower than this"}
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results: {type: array, items: {$ref: "#/components/schemas/Notification"}}
+                  unread: {type: integer}
+        "401": {$ref: "#/components/responses/Error"}
+  /api/notifications/unread-count:
+    get:
+      summary: Number of unread notifications, for the bell
+      responses: {"200": {description: "{unread}"}, "401": {$ref: "#/components/responses/Error"}}
+  /api/notifications/{id}/read:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    post:
+      summary: Mark one notification read. Someone else's returns 404.
+      responses: {"200": {description: "{unread}"}, "401": {$ref: "#/components/responses/Error"}, "404": {$ref: "#/components/responses/Error"}}
+  /api/notifications/read-all:
+    post:
+      summary: Mark all of the caller's notifications read
+      responses: {"200": {description: "{updated, unread}"}, "401": {$ref: "#/components/responses/Error"}}
   /api/me/health:
     get:
       summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.
@@ -304,6 +340,16 @@ components:
       description: Error
       content: {application/json: {schema: {type: object, properties: {detail: {type: string}}}}}
   schemas:
+    Notification:
+      type: object
+      properties:
+        id: {type: integer}
+        kind: {type: string, example: visit.called}
+        title: {type: string, example: "You've been called"}
+        body: {type: string, example: Please go to Outpatient Department now.}
+        link: {type: string, enum: [home, appointments], description: Which page the app should open}
+        createdAt: {type: string, format: date-time}
+        readAt: {type: string, format: date-time, nullable: true}
     Appointment:
       type: object
       properties:

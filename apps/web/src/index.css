@@ -235,6 +235,10 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 }
 .nav-item:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .nav-item.active { background: var(--teal); color: #fff; font-weight: 600; }
+.nav-count {
+  float: right; min-width: 20px; padding: 0 6px; border-radius: 999px; background: var(--amber); color: #fff;
+  font-size: 12px; font-weight: 600; text-align: center; line-height: 20px;
+}
 .sidebar-foot { margin-top: auto; display: grid; gap: 2px; }
 .sidebar-foot .muted { color: #9fbdb8; text-transform: capitalize; }
 .sidebar-foot .btn-link { color: #fff; text-align: left; padding: 0; margin-top: 8px; }
@@ -286,6 +290,22 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .status-in_progress { background: #dcf3ee; color: var(--teal); }
 .status-completed { background: #e6ece9; color: var(--slate); }
 .status-cancelled { background: var(--error-bg); color: var(--error); }
+
+.inline-check { display: flex; align-items: center; gap: 6px; font-size: 14px; color: var(--slate); }
+.inline-check input { width: auto; margin: 0; }
+.notification-list { list-style: none; padding: 0; margin-top: 0; overflow: hidden; }
+.notification {
+  width: 100%; display: grid; gap: 4px; text-align: left; background: none; border: none; border-bottom: 1px solid var(--line);
+  padding: 14px 20px 14px 24px; font: inherit; color: var(--ink); cursor: pointer; position: relative;
+}
+.notification-list li:last-child .notification { border-bottom: none; }
+.notification:hover { background: var(--paper); }
+.notification.unread { background: #f3f9f8; }
+.notification.unread::before {
+  content: ""; position: absolute; left: 10px; top: 20px; width: 7px; height: 7px; border-radius: 50%; background: var(--teal);
+}
+.notification-title { font-weight: 600; }
+.notification-body { font-size: 14px; color: var(--slate); }
 
 .split { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 20px; align-items: start; }
 .search { margin-bottom: 12px; }

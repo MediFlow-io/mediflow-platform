@@ -16,6 +16,11 @@
   - changed-files:
       - any-glob-to-any-file:
           - 'apps/patient-flow/**'
+'area: notifications':
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'apps/notifications/**'
+          - 'apps/core-api/apps/notifications/**'
 'area: admin-console':
   - changed-files:
       - any-glob-to-any-file:
@@ -56,6 +61,7 @@
           - 'apps/student-dashboard/Dockerfile'
           - 'apps/student-dashboard/nginx.conf'
           - 'apps/admin-console/Dockerfile'
+          - 'apps/notifications/Dockerfile'
           - 'e2e/**'
 'area: docs':
   - changed-files:
