@@ -67,6 +67,20 @@ services:
     depends_on:
       api: {condition: service_healthy}   # the API runs the schema migrations
 
+  notifications:
+    # Flask service that owns notifications: listens to patient-flow events (ADR-0002).
+    build: ./apps/notifications
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-mediflow}
+      POSTGRES_USER: ${POSTGRES_USER:-mediflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mediflow-dev-only}
+      POSTGRES_HOST: db
+      JWKS_URL: http://api:8000/api/auth/jwks
+      TIME_ZONE: ${TIME_ZONE:-Africa/Lagos}
+      NOTIFY_CHANNELS: ${NOTIFY_CHANNELS:-}   # e.g. email,sms (log-only until a provider is plugged in)
+    depends_on:
+      api: {condition: service_healthy}
+
   gateway:
     build: ./apps/gateway
     environment:
@@ -86,6 +100,7 @@ services:
       api: {condition: service_healthy}
       gateway: {condition: service_healthy}
       patient-flow: {condition: service_healthy}
+      notifications: {condition: service_healthy}
 
   student:
     build: ./apps/student-dashboard
@@ -95,6 +110,7 @@ services:
       api: {condition: service_healthy}
       gateway: {condition: service_healthy}
       patient-flow: {condition: service_healthy}
+      notifications: {condition: service_healthy}
 
   admin-console:
     # Laravel admin console: audit log, flow reports, departments. No database of its own (ADR-0002).

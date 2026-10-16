@@ -24,6 +24,7 @@ noted, read its tables without writing to them.
 | **Queue, live updates, flow dashboard** | **Go** | `apps/patient-flow` |
 | **Appointments: requests, bookings, same-day check-in** | **Go** | `apps/patient-flow` |
 | AI triage and first-aid answers | FastAPI | `apps/ai-service` (called via Django) |
+| **Notifications: in-app, plus email/SMS hooks** | **Flask** | `apps/notifications`: turns patient-flow events into notifications |
 | Audit log | Shared, append-only | every service inserts; nobody updates or deletes |
 | Admin console and reporting | Laravel | `apps/admin-console`: reads through the APIs, no database of its own |
 | Edge auth checks | Go gateway | `apps/gateway` |
@@ -31,8 +32,7 @@ noted, read its tables without writing to them.
 Technology choices:
 - **Database: PostgreSQL** (one cluster). MySQL was considered and rejected for now: PostgreSQL already
   runs and is CI-tested, and both Go and Laravel support it well.
-- **Flask and plain PHP are not used.** Nothing in the system needs them, and each would duplicate an
-  existing service.
+- **Flask owns notifications** (amendment, 2026-10-16, see below). Plain PHP is not used.
 
 Rules:
 1. **Schema changes go through Django migrations** for now, including `patients_visit`, so there is one
@@ -53,3 +53,21 @@ Rules:
   effect immediately in both services.
 - The role and transition rules now live in Go (`internal/flow`). Django's copy was removed so the two
   can't drift apart.
+
+## Amendment (2026-10-16): Flask owns notifications
+
+The team chose Flask for a notification service. It has a job no other service does, so it doesn't
+duplicate anything:
+
+- It **listens** on the same PostgreSQL channel the Go service publishes (`mediflow_visits`), after commit.
+  Go doesn't call it and doesn't wait for it: if it's down, check-ins and the queue keep working, and only
+  notifications for that period are lost.
+- It is the **only writer** of `notifications_notification` and `notifications_delivery`. As with every
+  table, the schema comes from a Django migration (`apps/core-api/apps/notifications`).
+- It **reads** visits, appointments, patients, departments, users and the audit log (to know who made a
+  change). It never writes them.
+- It verifies the same RS256 access tokens via the JWKS, and re-reads `is_active` on every request.
+- Notification text has no clinical details. Email/SMS (when a provider is plugged in) only say "you have a
+  new notification": the content stays behind the login.
+- Routing: `/api/notifications*` goes to Flask in Nginx and the Vite dev proxies.
+

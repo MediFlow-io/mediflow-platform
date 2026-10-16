@@ -12,7 +12,7 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "loc
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "django_prometheus", "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai",
+    "django_prometheus", "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai", "apps.notifications",
 ]
 # Prometheus middleware wraps everything else (first and last) to time whole requests.
 MIDDLEWARE = [
