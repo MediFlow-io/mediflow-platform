@@ -81,6 +81,28 @@ class AdminConsoleTest extends TestCase
         Http::assertSent(fn (Request $r) => $r->url() === self::GATEWAY.'/api/auth/logout' && $r['refresh'] === 'R');
     }
 
+    public function test_two_step_sign_in_asks_for_a_code(): void
+    {
+        Http::fake([
+            self::GATEWAY.'/api/auth/login' => Http::response(['mfa_required' => true, 'mfa_token' => 'CHALLENGE']),
+            self::GATEWAY.'/api/auth/mfa/verify' => Http::sequence()
+                ->push(['detail' => "That code isn't right."], 401)
+                ->push(['id' => 1, 'username' => 'admin', 'name' => 'Ada Admin', 'role' => 'admin', 'access' => 'A', 'refresh' => 'R']),
+        ]);
+        $this->get('/login/code')->assertRedirect('/login');
+
+        $this->post('/login', ['username' => 'admin', 'password' => 'secret-pass'])->assertRedirect('/login/code');
+        $this->assertNull(session(MediflowClient::SESSION_KEY), 'no tokens before the code');
+        $this->get('/login/code')->assertOk()->assertSee('Authentication code');
+        $this->post('/login/code', ['code' => '12ab'])->assertSessionHasErrors('code');
+        $this->post('/login/code', ['code' => '123456'])->assertRedirect('/login/code')
+            ->assertSessionHasErrors(['code' => "That code isn't right."]);
+        $this->post('/login/code', ['code' => '654321'])->assertRedirect('/');
+        $this->assertSame('A', session(MediflowClient::SESSION_KEY.'.access'));
+        $this->assertNull(session(MediflowClient::MFA_KEY));
+        Http::assertSent(fn (Request $r) => str_ends_with($r->url(), '/api/auth/mfa/verify') && $r['mfa_token'] === 'CHALLENGE' && $r['code'] === '654321');
+    }
+
     public function test_wrong_password_shows_the_api_message(): void
     {
         Http::fake([self::GATEWAY.'/api/auth/login' => Http::response(['detail' => 'Invalid credentials.'], 401)]);

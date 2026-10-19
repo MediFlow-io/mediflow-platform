@@ -21,6 +21,7 @@ from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, TriageSuggestView
 from apps.clinic import views as clinic
 from apps.emr import views as emr
+from apps.accounts import mfa_views
 
 router = DefaultRouter()
 router.trailing_slash = ""  # Existing MediFlow frontend calls /api/patients, not /api/patients/.
@@ -42,6 +43,12 @@ urlpatterns = [
     path("api/auth/register/student", StudentRegisterView.as_view()), path("api/auth/register/student/", StudentRegisterView.as_view()),
     path("api/auth/register/staff", StaffRegisterView.as_view()), path("api/auth/register/staff/", StaffRegisterView.as_view()),
     path("api/auth/token/refresh", TokenRefreshView.as_view()), path("api/auth/token/refresh/", TokenRefreshView.as_view()),
+    path("api/auth/mfa/verify", mfa_views.MfaVerifyView.as_view()), path("api/auth/mfa/verify/", mfa_views.MfaVerifyView.as_view()),
+    path("api/auth/mfa/status", mfa_views.MfaStatusView.as_view()), path("api/auth/mfa/status/", mfa_views.MfaStatusView.as_view()),
+    path("api/auth/mfa/setup", mfa_views.MfaSetupView.as_view()), path("api/auth/mfa/setup/", mfa_views.MfaSetupView.as_view()),
+    path("api/auth/mfa/confirm", mfa_views.MfaConfirmView.as_view()), path("api/auth/mfa/confirm/", mfa_views.MfaConfirmView.as_view()),
+    path("api/auth/mfa/disable", mfa_views.MfaDisableView.as_view()), path("api/auth/mfa/disable/", mfa_views.MfaDisableView.as_view()),
+    path("api/users/<int:pk>/reset-mfa", mfa_views.MfaResetView.as_view()),
     path("api/auth/jwks", JwksView.as_view()), path(".well-known/jwks.json", JwksView.as_view()),
     path("api/auth/change-password", ChangePasswordView.as_view()), path("api/auth/change-password/", ChangePasswordView.as_view()),
     path("api/health", HealthView.as_view()),

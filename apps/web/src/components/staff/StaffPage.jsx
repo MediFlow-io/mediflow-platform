@@ -32,6 +32,21 @@ export default function StaffPage() {
     }
   }
 
+  async function resetMfa(target) {
+    if (!window.confirm(`Reset two-step sign-in for ${target.username}? Use this when they lost their phone; they can sign in with their password and set it up again.`)) return;
+    setBusy(target.id);
+    setError(null);
+    setNotice(null);
+    try {
+      const { reset } = await mediflowApi.resetMfa(target.id);
+      setNotice(reset ? `Two-step sign-in reset for ${target.username}.` : `${target.username} didn't have two-step sign-in on.`);
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   function resetPassword(target) {
     const password = window.prompt(`New temporary password for ${target.username} (at least 8 characters):`);
     if (password) update(target, { password }, `Password reset for ${target.username}. Share it securely.`);
@@ -86,6 +101,11 @@ export default function StaffPage() {
                       <button type="button" className="btn btn-small btn-secondary" disabled={busy === u.id} onClick={() => resetPassword(u)}>
                         Reset password
                       </button>
+                      {u.role !== "student" && (
+                        <button type="button" className="btn btn-small btn-secondary" disabled={busy === u.id} onClick={() => resetMfa(u)}>
+                          Reset 2FA
+                        </button>
+                      )}
                       {!self && (
                         <button type="button" className={`btn btn-small ${u.is_active ? "btn-danger" : ""}`} disabled={busy === u.id}
                           onClick={() => update(u, { is_active: !u.is_active }, `${u.username} ${u.is_active ? "deactivated and signed out" : "reactivated"}.`)}>

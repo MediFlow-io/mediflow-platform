@@ -41,7 +41,9 @@ LANGUAGE_CODE, TIME_ZONE, USE_I18N, USE_TZ = "en-us", "Africa/Lagos", True, True
 STATIC_URL, STATIC_ROOT = "/static/", BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # JWT (RS256) for the React client and other services; sessions for the legacy FUTA frontend.
-REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min"), "login": os.getenv("LOGIN_RATE_LIMIT", "10/min"), "register": os.getenv("REGISTER_RATE_LIMIT", "20/hour")}}
+REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min"), "login": os.getenv("LOGIN_RATE_LIMIT", "10/min"), "register": os.getenv("REGISTER_RATE_LIMIT", "20/hour"), "refresh": os.getenv("REFRESH_RATE_LIMIT", "60/min")}}
+# Roles that must use two-step sign-in (authenticator app), e.g. "admin,doctor,nurse". Empty: optional for everyone.
+MFA_REQUIRED_ROLES = frozenset(r.strip() for r in os.getenv("MFA_REQUIRED_ROLES", "").split(",") if r.strip())
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
