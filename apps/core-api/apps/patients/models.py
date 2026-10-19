@@ -24,6 +24,14 @@ class Patient(models.Model):
     diagnosis = models.TextField(blank=True)
     treatment = models.TextField(blank=True)
     notes = models.TextField(blank=True)
+    class PaymentCategory(models.TextChoices):
+        STUDENT = "student", "Student (school fees)"; STAFF = "staff", "Staff"; INSURANCE = "insurance", "Health insurance (NHIA/HMO)"
+        CASH = "cash", "Self-pay"; OTHER = "other", "Other"
+    # Database defaults too, so other services' inserts (Go, tests) keep working without these columns.
+    payment_category = models.CharField(max_length=10, choices=PaymentCategory.choices, default=PaymentCategory.STUDENT, db_default=PaymentCategory.STUDENT)
+    insurance_number = models.CharField(max_length=40, blank=True, default="", db_default="")
+    # Long-term conditions as a list of short names, e.g. ["Asthma", "Sickle cell disease"].
+    chronic_conditions = models.JSONField(default=list, blank=True, db_default=models.Value([], output_field=models.JSONField()))
     # Optional login account (e.g. a student) that may view this record via /api/me/health.
     user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="patient_record")
     created_at = models.DateTimeField(auto_now_add=True)

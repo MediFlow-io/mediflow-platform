@@ -9,6 +9,7 @@ import DashboardPage from "./DashboardPage";
 import PatientsPage from "./PatientsPage";
 import AppointmentsPage from "./AppointmentsPage";
 import NotificationsPage from "./NotificationsPage";
+import PharmacyPage from "./PharmacyPage";
 import QueuePage from "./QueuePage";
 import StaffPage from "./StaffPage";
 
@@ -17,6 +18,7 @@ const PAGES = [
   { id: "queue", label: "Queue", permission: "readPatients", Component: QueuePage },
   { id: "appointments", label: "Appointments", permission: "manageAppointments", Component: AppointmentsPage },
   { id: "patients", label: "Patients", permission: "readPatients", Component: PatientsPage },
+  { id: "pharmacy", label: "Pharmacy", permission: "pharmacy", Component: PharmacyPage },
   { id: "staff", label: "Staff", permission: "manageStaff", Component: StaffPage },
   { id: "notifications", label: "Notifications", permission: null, Component: NotificationsPage },
   { id: "account", label: "My account", permission: null, Component: AccountPage },

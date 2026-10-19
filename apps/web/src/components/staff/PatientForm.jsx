@@ -5,12 +5,19 @@ import { ErrorBox } from "../ui";
 const EMPTY = {
   fullName: "", sex: "", phone: "", dateOfBirth: "", address: "", nextOfKin: "", nextOfKinPhone: "",
   allergies: "", medicalHistory: "", complaint: "", diagnosis: "", treatment: "", notes: "", linkedAccount: "",
+  paymentCategory: "student", insuranceNumber: "", chronicConditions: "",
+};
+
+export const PAYMENT_CATEGORIES = {
+  student: "Student (school fees)", staff: "Staff", insurance: "Health insurance (NHIA/HMO)", cash: "Self-pay", other: "Other",
 };
 
 const fromPatient = (p) => ({
   ...EMPTY,
   ...Object.fromEntries(Object.keys(EMPTY).map((k) => [k, p[k] ?? ""])),
   linkedAccount: p.linkedAccountName ?? "",
+  paymentCategory: p.paymentCategory ?? "student",
+  chronicConditions: (p.chronicConditions ?? []).join(", "),
 });
 
 /** Create (no `patient`) or edit a patient. `readOnly` shows the record without inputs being editable. */
@@ -29,7 +36,11 @@ export default function PatientForm({ patient, readOnly = false, canLink = false
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const payload = { ...form, dateOfBirth: form.dateOfBirth || null };
+    const payload = {
+      ...form,
+      dateOfBirth: form.dateOfBirth || null,
+      chronicConditions: form.chronicConditions.split(",").map((c) => c.trim()).filter(Boolean),
+    };
     if (!canLink || (patient && form.linkedAccount === (patient.linkedAccountName ?? ""))) delete payload.linkedAccount;
     try {
       const saved = patient
@@ -84,10 +95,28 @@ export default function PatientForm({ patient, readOnly = false, canLink = false
       </fieldset>
 
       <fieldset>
+        <legend>Payment</legend>
+        <div className="field">
+          <label htmlFor="pf-paymentCategory">Payment category</label>
+          <select {...field("paymentCategory")}>
+            {Object.entries(PAYMENT_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        <div className="field">
+          <label htmlFor="pf-insuranceNumber">Insurance number</label>
+          <input {...field("insuranceNumber")} maxLength={40} placeholder={form.paymentCategory === "insurance" ? "NHIA or HMO number" : ""} />
+        </div>
+      </fieldset>
+
+      <fieldset>
         <legend>Medical</legend>
         <div className="field span-2">
           <label htmlFor="pf-allergies">Allergies</label>
           <input {...field("allergies")} placeholder="e.g. Penicillin" />
+        </div>
+        <div className="field span-2">
+          <label htmlFor="pf-chronicConditions">Long-term conditions</label>
+          <input {...field("chronicConditions")} placeholder="e.g. Asthma, Sickle cell disease (comma-separated)" />
         </div>
         <div className="field span-2">
           <label htmlFor="pf-medicalHistory">Medical history</label>
