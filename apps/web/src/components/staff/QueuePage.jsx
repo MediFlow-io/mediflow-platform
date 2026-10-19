@@ -1,9 +1,10 @@
-import { useRef, useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { useQueueEvents } from "../../hooks/useQueueEvents";
-import { actionsFor } from "../../lib/roles";
+import { actionsFor, can } from "../../lib/roles";
+import TriageForm from "./TriageForm";
 import { Empty, ErrorBox, EsiBadge, LiveBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals } from "../ui";
 
 export default function QueuePage() {
@@ -21,6 +22,8 @@ export default function QueuePage() {
   const [busy, setBusy] = useState(null);
   const deptName = (code) => (departments.data || []).find((d) => d.code === code)?.name ?? code;
   const [actionError, setActionError] = useState(null);
+  const [triageFor, setTriageFor] = useState(null);
+  const [notice, setNotice] = useState(null);
 
   async function run(visitId, action) {
     if (action === "cancel" && !window.confirm("Cancel this visit? The patient leaves the queue.")) return;
@@ -61,6 +64,7 @@ export default function QueuePage() {
         </select>
       </PageHeader>
       <ErrorBox error={actionError} />
+      {notice && <p className="notice" role="status">{notice}</p>}
 
       <section className="panel">
         <h2>With staff now</h2>
@@ -100,11 +104,12 @@ export default function QueuePage() {
         {queue.data && queue.data.length > 0 && (
           <table className="table">
             <thead>
-              <tr><th>#</th><th>Patient</th><th>Priority</th><th>Department</th><th>Arrived</th><th>Waited</th><th /></tr>
+              <tr><th>#</th><th>Patient</th><th>Priority</th><th>Department</th><th>Arrived</th><th>Waited</th><th>Est. wait</th><th /></tr>
             </thead>
             <tbody>
               {queue.data.map((q) => (
-                <tr key={q.id} className={q.priority <= 2 ? "row-urgent" : undefined}>
+                <Fragment key={q.id}>
+                <tr className={q.priority <= 2 ? "row-urgent" : undefined}>
                   <td>{q.position}</td>
                   <td>
                     <strong>{q.fullName}</strong><div className="mono small">{q.hospitalNumber}</div>
@@ -113,9 +118,31 @@ export default function QueuePage() {
                   <td><EsiBadge esi={q.priority} /></td>
                   <td>{deptName(q.department)}</td>
                   <td>{q.arrival}</td>
-                  <td className={q.waitingMinutes >= 60 ? "text-alert" : undefined}>{q.wait}</td>
-                  <td className="actions">{buttons(q.id, "waiting")}</td>
+                  <td className={q.overTarget ? "text-alert" : undefined}>
+                    {q.wait}
+                    {q.overTarget && <div className="small">over {q.targetMinutes} min target</div>}
+                  </td>
+                  <td>{estimate(q.estimatedWaitMinutes)}</td>
+                  <td className="actions">
+                    {can(user, "changeTriage") && (
+                      <button type="button" className="btn btn-small btn-secondary" disabled={busy !== null}
+                        onClick={() => { setNotice(null); setTriageFor(triageFor === q.id ? null : q.id); }}>
+                        Change ESI
+                      </button>
+                    )}
+                    {buttons(q.id, "waiting")}
+                  </td>
                 </tr>
+                {triageFor === q.id && (
+                  <tr className="row-form">
+                    <td colSpan={8}>
+                      <TriageForm visitId={q.id} current={q.priority} patientName={q.fullName}
+                        onCancel={() => setTriageFor(null)}
+                        onDone={(message) => { setTriageFor(null); setNotice(message); queue.reload(); }} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -123,4 +150,11 @@ export default function QueuePage() {
       </section>
     </>
   );
+}
+
+// A rough guide from the queue engine: people ahead × recent consultation time ÷ clinicians working.
+function estimate(minutes) {
+  if (minutes === null || minutes === undefined) return "—";
+  if (minutes === 0) return "Next";
+  return `~${minutes} min`;
 }

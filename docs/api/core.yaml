@@ -60,6 +60,20 @@ paths:
                 pain_score: {type: integer, minimum: 0, maximum: 10, nullable: true}
                 vitals: {$ref: "#/components/schemas/Vitals"}
       responses: {"201": {description: Checked in}, "400": {$ref: "#/components/responses/Error"}}
+  /api/visits/{id}/triage:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+    post:
+      summary: Escalate or de-escalate a waiting or called patient (admin, doctor, nurse)
+      description: |
+        Body `{esi, reason}`; the reason is required and kept in the visit's triage history, not in the
+        audit log (which records `visit.triage_changed` with from/to levels only). An ESI change through
+        `PATCH /api/visits/{id}` (optional `esi_reason`) is recorded the same way. 409 once the
+        consultation has started.
+      responses: {"200": {description: The updated visit}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}, "409": {description: Not waiting or called}}
+    get:
+      summary: The visit's triage changes, oldest first
+      responses: {"200": {description: "[{from_esi, to_esi, direction, reason, changed_by, changed_at}]"}}
   /api/visits/{id}/{action}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: integer}}
@@ -103,6 +117,22 @@ paths:
                     waitingMinutes: {type: integer, description: Time actually waited so far}
                     chiefComplaint: {type: string}
                     wait: {type: string, example: "12 min"}
+                    aheadInDepartment: {type: integer, description: People ahead in the same department}
+                    estimatedWaitMinutes:
+                      type: integer
+                      nullable: true
+                      description: |
+                        Rough minutes until called: people ahead × mean consultation time over 7 days
+                        (default 15, kept within 3–120) ÷ clinicians working (in consultation now, or
+                        doctors rostered now, at least 1). Null when it can't be computed.
+                    targetMinutes: {type: integer, description: The ESI level's target from clinic settings}
+                    overTarget: {type: boolean}
+  /api/queue/me:
+    get:
+      summary: The caller's own place in the queue (patients)
+      responses:
+        "200":
+          description: "{linked, active, status, department, ahead, estimatedWaitMinutes}"
   /api/queue/events:
     get:
       summary: Live queue changes as server-sent events (same roles as /api/queue). Served by Go.
@@ -133,6 +163,20 @@ paths:
                   longestCurrentWaitMinutes: {type: integer, nullable: true}
                   byDepartment: {type: array, items: {type: object}}
                   byStatus: {type: object, additionalProperties: {type: integer}}
+                  overTarget: {type: integer, description: Waiting longer than their ESI target}
+                  longWaits: {type: integer, description: Waiting longer than longWaitMinutes}
+                  longWaitMinutes: {type: integer}
+                  departmentLoad:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+                        waiting: {type: integer}
+                        inConsultation: {type: integer}
+                        longestWaitMinutes: {type: integer}
+                        overTarget: {type: integer}
+                        longWaits: {type: integer}
   /api/reports/flow:
     get:
       summary: Multi-day flow report (admin only). Served by Go. Used by the admin console.

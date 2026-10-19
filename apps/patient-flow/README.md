@@ -18,9 +18,11 @@ change.
 | `POST /api/visits` | admin, doctor, nurse, reception | Check in `{patient, department, esi}`. One active visit per patient |
 | `GET` / `PATCH /api/visits/{id}` | read: staff · edit: admin, doctor, reception | `esi`, `department`, `arrival_mode` and `assigned_clinician` are editable. `status` is not |
 | `POST /api/visits/{id}/{call,start,complete,cancel}` | per action, see `internal/flow` | The only way to change status. `409` if not allowed from the current status |
-| `GET /api/queue` | staff with patient access | Waiting patients: ESI first, then arrival. Real minutes waited |
+| `GET /api/queue` | staff with patient access | Waiting patients: ESI first, then arrival. Real minutes waited, people ahead in the department, an estimated wait and the ESI target |
+| `GET /api/queue/me` | patients (own record) | Own place in the queue and estimated wait (student dashboard) |
+| `POST` / `GET /api/visits/{id}/triage` | change: admin, doctor, nurse · read: staff | Escalate or de-escalate a waiting patient with a reason; the triage history |
 | `GET /api/queue/events` | staff with patient access | Server-sent events (`event: visit`) on every change, after commit |
-| `GET /api/dashboard` | all staff | Today's flow numbers |
+| `GET /api/dashboard` | all staff | Today's flow numbers, plus queue load per department and how many are over their ESI target |
 | `GET /api/reports/flow` | admin | Multi-day report (used by the admin console) |
 | `GET /api/appointments`, `POST /api/appointments/{id}/{confirm,decline,cancel,check_in}` | front desk; patients may cancel their own | Appointment requests, bookings and same-day check-in (creates the visit in the same transaction) |
 | `GET /api/appointments/mine`, `POST /api/appointments` | patients (own record) and staff | A patient's own appointments; request a slot (patients) or book one (staff) |
