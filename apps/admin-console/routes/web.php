@@ -17,6 +17,7 @@ Route::middleware('admin')->group(function () {
     Route::get('/audit', [AuditController::class, 'index'])->name('audit');
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');
     Route::get('/reports/flow.csv', [ReportController::class, 'csv'])->name('reports.csv');
+    Route::get('/reports/flow.pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
     Route::get('/departments', [DepartmentController::class, 'index'])->name('departments');
     Route::post('/departments', [DepartmentController::class, 'store'])->name('departments.store');
     Route::patch('/departments/{id}', [DepartmentController::class, 'update'])->whereNumber('id')->name('departments.update');

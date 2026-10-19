@@ -198,6 +198,10 @@ paths:
                   days: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {date: {type: string}}}]}}
                   byDepartment: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {department: {type: string}}}]}}
                   byEsi: {type: array, items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {esi: {type: integer}}}]}}
+                  byHour: {type: array, description: "24 rows, by local check-in hour", items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {hour: {type: integer}}}]}}
+                  byWeekday: {type: array, description: "7 rows, 0 = Sunday", items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {weekday: {type: integer}, day: {type: string}}}]}}
+                  byClinician: {type: array, description: "Assigned clinician, most completed first", items: {allOf: [{$ref: "#/components/schemas/FlowStats"}, {properties: {clinician: {type: string}}}]}}
+                  targetMinutes: {type: object, additionalProperties: {type: integer}, description: "ESI level → target used for seenWithinTargetPercent"}
         "400": {$ref: "#/components/responses/Error"}
         "403": {$ref: "#/components/responses/Error"}
   /api/audit-logs:
@@ -484,6 +488,8 @@ components:
         cancelled: {type: integer}
         averageWaitMinutes: {type: integer, nullable: true, description: Check-in to called/started}
         averageConsultationMinutes: {type: integer, nullable: true, description: Started to completed}
+        averageCallToStartMinutes: {type: integer, nullable: true, description: Called to started}
+        seenWithinTargetPercent: {type: integer, nullable: true, description: "Share seen within their ESI target (0–100)"}
     Patient:
       type: object
       required: [fullName, sex, phone]

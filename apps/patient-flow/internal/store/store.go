@@ -449,12 +449,15 @@ type ReportRow struct {
 	CalledAt       *time.Time
 	StartedAt      *time.Time
 	CompletedAt    *time.Time
+	ClinicianName  *string
 }
 
 // ReportRows returns visits checked in within [since, until), oldest first.
 func (s *Store) ReportRows(ctx context.Context, since, until time.Time) ([]ReportRow, error) {
-	rows, err := s.pool.Query(ctx, `SELECT d.name, v.esi, v.status, v.checked_in_at, v.called_at, v.started_at, v.completed_at
+	rows, err := s.pool.Query(ctx, `SELECT d.name, v.esi, v.status, v.checked_in_at, v.called_at, v.started_at, v.completed_at,
+			nullif(coalesce(nullif(u.display_name, ''), u.username), '')
 		FROM patients_visit v JOIN patients_department d ON d.id = v.department_id
+		LEFT JOIN accounts_user u ON u.id = v.assigned_clinician_id
 		WHERE v.checked_in_at >= $1 AND v.checked_in_at < $2 ORDER BY v.checked_in_at`, since, until)
 	if err != nil {
 		return nil, err
@@ -464,7 +467,7 @@ func (s *Store) ReportRows(ctx context.Context, since, until time.Time) ([]Repor
 	for rows.Next() {
 		var r ReportRow
 		var st string
-		if err := rows.Scan(&r.DepartmentName, &r.ESI, &st, &r.CheckedInAt, &r.CalledAt, &r.StartedAt, &r.CompletedAt); err != nil {
+		if err := rows.Scan(&r.DepartmentName, &r.ESI, &st, &r.CheckedInAt, &r.CalledAt, &r.StartedAt, &r.CompletedAt, &r.ClinicianName); err != nil {
 			return nil, err
 		}
 		r.Status = flow.Status(st)

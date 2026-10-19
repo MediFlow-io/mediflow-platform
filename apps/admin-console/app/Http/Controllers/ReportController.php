@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exceptions\MediflowException;
 use App\Services\MediflowClient;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Response;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -43,6 +45,21 @@ class ReportController extends Controller
             }
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+    }
+
+    /** The same report as a PDF, for printing or sharing. Contains no patient-identifiable data. */
+    public function pdf(Request $request, MediflowClient $mediflow): Response
+    {
+        [$from, $to] = $this->range($request);
+        $report = $mediflow->flowReport($from, $to);
+        $html = view('reports.pdf', [
+            'report' => $report,
+            'generatedAt' => now($report['timeZone'] ?? 'UTC')->format('D j M Y, H:i'),
+            'generatedBy' => $mediflow->user()['name'] ?? 'an administrator',
+        ])->render();
+        $pdf = Pdf::loadHTML($html)->setPaper('a4')->setOption(['isRemoteEnabled' => false]);
+
+        return $pdf->download(sprintf('mediflow-flow-%s-to-%s.pdf', $report['from'], $report['to']));
     }
 
     /** @return array{0: ?string, 1: ?string} */
