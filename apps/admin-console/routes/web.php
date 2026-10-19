@@ -4,6 +4,7 @@ use App\Http\Controllers\AuditController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\InsightsController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SettingsController;
 use Illuminate\Support\Facades\Route;
@@ -20,6 +21,7 @@ Route::middleware('admin')->group(function () {
     Route::get('/reports', [ReportController::class, 'index'])->name('reports');
     Route::get('/reports/flow.csv', [ReportController::class, 'csv'])->name('reports.csv');
     Route::get('/reports/flow.pdf', [ReportController::class, 'pdf'])->name('reports.pdf');
+    Route::get('/insights', InsightsController::class)->name('insights');
     Route::get('/departments', [DepartmentController::class, 'index'])->name('departments');
     Route::post('/departments', [DepartmentController::class, 'store'])->name('departments.store');
     Route::patch('/departments/{id}', [DepartmentController::class, 'update'])->whereNumber('id')->name('departments.update');

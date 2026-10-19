@@ -18,7 +18,7 @@ from apps.accounts.views import (
 from apps.patients.views import DepartmentViewSet, PatientViewSet
 from apps.operations.views import HealthView
 from apps.operations.audit_api import AuditLogListView
-from apps.ai.views import AskView, TriageSuggestView
+from apps.ai.views import AskView, InsightsView, RiskScoreView, TriageSuggestView
 from apps.clinic import views as clinic
 from apps.emr import views as emr
 from apps.accounts import mfa_views
@@ -57,6 +57,8 @@ urlpatterns = [
     path("api/audit-logs", AuditLogListView.as_view()), path("api/audit-logs/", AuditLogListView.as_view()),
     path("api/ai/ask", AskView.as_view()), path("api/ai/ask/", AskView.as_view()),
     path("api/ai/triage", TriageSuggestView.as_view()), path("api/ai/triage/", TriageSuggestView.as_view()),
+    path("api/ai/risk-score", RiskScoreView.as_view()), path("api/ai/risk-score/", RiskScoreView.as_view()),
+    path("api/ai/insights", InsightsView.as_view()), path("api/ai/insights/", InsightsView.as_view()),
     # Clinic settings: read by everyone signed in, changed by admins (edited from the Laravel console).
     path("api/clinic/settings", clinic.ClinicSettingsView.as_view()),
     path("api/clinic/queue-settings", clinic.QueueSettingsView.as_view()),

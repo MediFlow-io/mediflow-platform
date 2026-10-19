@@ -14,7 +14,9 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 
 from .config import load_settings
 from .first_aid import answer_question
-from .schemas import AskRequest, AskResponse, TriageRequest, TriageResponse
+from . import flow_insights, news2
+from .schemas import (AskRequest, AskResponse, BottleneckRequest, BottleneckResponse, RiskScoreRequest,
+                      RiskScoreResponse, TriageRequest, TriageResponse, WaitTimeRequest, WaitTimeResponse)
 from .triage import MODEL_VERSION, suggest_esi
 
 
@@ -42,6 +44,7 @@ app = FastAPI(title="MediFlow AI", version=MODEL_VERSION,
 REQUESTS = Counter("mediflow_ai_requests_total", "AI requests", ["path", "status"])
 LATENCY = Histogram("mediflow_ai_request_seconds", "AI request latency", ["path"])
 SUGGESTED_ESI = Counter("mediflow_ai_triage_suggestions_total", "Triage suggestions by ESI", ["esi"])
+RISK_BANDS = Counter("mediflow_ai_news2_scores_total", "NEWS2 scores by risk band", ["risk"])
 
 
 @app.middleware("http")
@@ -65,7 +68,8 @@ def require_internal_token(x_internal_token: str = Header(default="")) -> None:
 
 @app.get("/ai/health")
 def health() -> dict:
-    return {"status": "ok", "model_version": MODEL_VERSION}
+    return {"status": "ok", "model_version": MODEL_VERSION,
+            "models": {"triage": MODEL_VERSION, "risk_score": news2.MODEL_VERSION, "flow": flow_insights.MODEL_VERSION}}
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -88,3 +92,20 @@ def ask(body: AskRequest) -> AskResponse:
     answer, topic, emergency = answer_question(body.question, settings.emergency_number)
     return AskResponse(answer=answer, topic=topic, emergency=emergency,
                        disclaimer=ASK_DISCLAIMER)
+
+
+@app.post("/ai/risk-score", response_model=RiskScoreResponse, dependencies=[Depends(require_internal_token)])
+def risk_score(body: RiskScoreRequest) -> RiskScoreResponse:
+    result = news2.score(body)
+    RISK_BANDS.labels(result["risk"]).inc()
+    return RiskScoreResponse(**result)
+
+
+@app.post("/ai/wait-time", response_model=WaitTimeResponse, dependencies=[Depends(require_internal_token)])
+def wait_time(body: WaitTimeRequest) -> WaitTimeResponse:
+    return WaitTimeResponse(**flow_insights.wait_times(body))
+
+
+@app.post("/ai/bottleneck", response_model=BottleneckResponse, dependencies=[Depends(require_internal_token)])
+def bottleneck(body: BottleneckRequest) -> BottleneckResponse:
+    return BottleneckResponse(**flow_insights.bottlenecks(body))

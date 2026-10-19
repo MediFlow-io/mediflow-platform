@@ -12,7 +12,7 @@
     <aside class="sidebar">
         <div class="brand"><span class="brand-mark"></span><span class="brand-name">MediFlow</span><span class="brand-tag">admin</span></div>
         <nav aria-label="Main">
-            @foreach ([['dashboard', 'Overview'], ['reports', 'Flow reports'], ['audit', 'Audit log'], ['departments', 'Departments'],
+            @foreach ([['dashboard', 'Overview'], ['reports', 'Flow reports'], ['insights', 'AI insights'], ['audit', 'Audit log'], ['departments', 'Departments'],
                        ['settings', 'Queue rules & holidays'], ['settings.hours', 'Opening hours'], ['settings.rota', 'Staff rota']] as [$route, $label])
                 @php($here = $route === 'settings' ? request()->routeIs('settings') || request()->routeIs('settings.queue', 'settings.holidays.*') : request()->routeIs($route.'*'))
                 <a href="{{ route($route) }}" class="nav-item {{ $here ? 'active' : '' }}" @if ($here) aria-current="page" @endif>{{ $label }}</a>

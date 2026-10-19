@@ -81,6 +81,22 @@ paths:
         "401": {description: Not signed in}
         "403": {description: Role not allowed}
         "503": {description: AI service unavailable}
+  /api/ai/risk-score:
+    post:
+      summary: NEWS2 early-warning score from vital signs (admin, doctor, nurse). Advisory only
+      description: |
+        Body `{vitals, on_oxygen?, new_confusion?}`; only these are forwarded. Answer `{score, risk:
+        low|low-medium|medium|high, complete, parameters: [{parameter, value, points}], missing, reasons,
+        recommendation, requires_clinician_review, model_version}`. Audited as ai.risk_scored (score and band only).
+      responses: {"200": {description: OK}, "403": {description: Not a clinical role}, "503": {description: AI service unavailable}}
+  /api/ai/insights:
+    get:
+      summary: Flow insights for administrators (last 14 days)
+      description: |
+        `{periodDays, generatedAt, departments: [{name, waitingNow, checkIns, expectedWaitForNewArrival:
+        {expected_minutes, low_minutes, high_minutes, confidence, basis, note}}], findings: [{severity, department,
+        stage, message}], modelVersion}`. Django aggregates the visits and sends only numbers to the AI service.
+      responses: {"200": {description: OK}, "403": {description: Not an admin}, "503": {description: AI service unavailable}}
   /api/health:
     get:
       summary: Liveness + database check (public, no sensitive data)
