@@ -291,9 +291,11 @@ paths:
     get:
       summary: The caller's own notifications, newest first (Flask notification service)
       description: |
-        Created from patient-flow events: "You've been called", "You're checked in", "You're next",
-        appointment booked/confirmed/declined/cancelled for patients; new requests and patient cancellations
-        for front-desk staff (admin, doctor, nurse, reception).
+        Created from patient-flow events and scheduled checks: "You've been called", "You're checked in",
+        "You're next", "Your turn is near", appointment booked/confirmed/declined/cancelled and reminders,
+        long-wait notices for patients; new requests and patient cancellations for front-desk staff
+        (admin, doctor, nurse, reception); urgent (ESI 1–2) arrivals and escalations for doctors and nurses.
+        `link` is home, appointments or queue.
       parameters:
         - {name: unread, in: query, schema: {type: string, enum: ["1", "true"]}, description: Only unread}
         - {name: limit, in: query, schema: {type: integer, default: 30, maximum: 100}}
@@ -319,6 +321,13 @@ paths:
     post:
       summary: Mark one notification read. Someone else's returns 404.
       responses: {"200": {description: "{unread}"}, "401": {$ref: "#/components/responses/Error"}, "404": {$ref: "#/components/responses/Error"}}
+  /api/notifications/preferences:
+    get:
+      summary: The caller's delivery preferences
+      responses: {"200": {description: "{in_app: true, email, sms}"}}
+    put:
+      summary: "Turn email and/or SMS on or off, e.g. {\"sms\": false}. In-app can't be turned off"
+      responses: {"200": {description: Saved}, "400": {$ref: "#/components/responses/Error"}}
   /api/notifications/read-all:
     post:
       summary: Mark all of the caller's notifications read
@@ -446,7 +455,7 @@ components:
         kind: {type: string, example: visit.called}
         title: {type: string, example: "You've been called"}
         body: {type: string, example: Please go to Outpatient Department now.}
-        link: {type: string, enum: [home, appointments], description: Which page the app should open}
+        link: {type: string, enum: [home, appointments, queue], description: Which page the app should open}
         createdAt: {type: string, format: date-time}
         readAt: {type: string, format: date-time, nullable: true}
     Appointment:

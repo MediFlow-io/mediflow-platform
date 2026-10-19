@@ -13,7 +13,7 @@ import pytest
 
 from app import create_app, listener, store
 from app.auth import AuthError
-from app.channels import LogEmail
+from app.channels import LogEmail, LogSMS
 from app.config import Settings
 
 DSN = os.getenv("TEST_DATABASE_URL")
@@ -34,12 +34,26 @@ class TokenIsUserId:
 def db():
     with psycopg.connect(DSN, autocommit=True) as conn:
         try:
-            conn.execute("""TRUNCATE notifications_delivery, notifications_notification, operations_auditlog,
-                patients_appointment, patients_visit, patients_patient, patients_department, accounts_user
-                RESTART IDENTITY CASCADE""")
+            conn.execute("""TRUNCATE notifications_delivery, notifications_notification, notifications_preference,
+                operations_auditlog, patients_triagechange, patients_appointment, patients_visit, patients_patient,
+                patients_department, accounts_user, clinic_staffshift, clinic_queuesettings RESTART IDENTITY CASCADE""")
         except psycopg.errors.UndefinedTable:
             pytest.fail("schema missing: run the core API migrations on the test database first")
         yield Fixture(conn)
+
+
+@pytest.fixture
+def make_client():
+    apps = []
+
+    def make():
+        app = create_app(Settings(database_url=DSN, listen=False), verifier=TokenIsUserId())
+        apps.append(app)
+        return app.test_client()
+
+    yield make
+    for app in apps:
+        app.extensions["mediflow"]["pool"].close()
 
 
 class Fixture:
@@ -67,16 +81,16 @@ class Fixture:
             VALUES (%s, %s, 'Female', '0800', '', '', '', '', '', '', '', '', '', now(), now(), %s) RETURNING id""",
                         (f"MF-{name[:3]}", name, user_id))
 
-    def visit(self, patient, esi, status="waiting"):
+    def visit(self, patient, esi, status="waiting", waited=0):
         return self.one("""INSERT INTO patients_visit (visit_number, esi, status, arrival_mode, checked_in_at, department_id,
-            patient_id, avpu, chief_complaint) VALUES (gen_random_uuid()::text, %s, %s, 'walk_in', now(), %s, %s, 'A', 'private')
-            RETURNING id""", (esi, status, self.opd, patient))
+            patient_id, avpu, chief_complaint) VALUES (gen_random_uuid()::text, %s, %s, 'walk_in',
+            now() - make_interval(mins => %s), %s, %s, 'A', 'private') RETURNING id""", (esi, status, waited, self.opd, patient))
 
-    def appointment(self, patient, actor, status="requested"):
-        appt = self.one("""INSERT INTO patients_appointment (reference, patient_id, department_id, scheduled_for, reason, status,
+    def appointment(self, patient, actor, status="requested", at="'2026-10-20 08:30+00'::timestamptz"):
+        appt = self.one(f"""INSERT INTO patients_appointment (reference, patient_id, department_id, scheduled_for, reason, status,
             staff_note, requested_by_id, created_at, updated_at)
-            VALUES ('A-1', %s, %s, '2026-10-20 08:30+00', 'private reason', %s, 'Bring your card', %s, now(), now()) RETURNING id""",
-                        (patient, self.opd, status, actor))
+            VALUES ('A-' || floor(random() * 1e8)::text, %s, %s, {at}, 'private reason', %s, 'Bring your card', %s, now(), now())
+            RETURNING id""", (patient, self.opd, status, actor))
         return appt
 
     def audit(self, actor, action, entity, entity_id):
@@ -118,14 +132,13 @@ def test_confirmation_is_delivered_on_extra_channels(db):
                            (nid,)).fetchall() == [("email", "sent")]
 
 
-def test_api_lists_and_marks_read_only_own_notifications(db):
+def test_api_lists_and_marks_read_only_own_notifications(db, make_client):
     called = db.visit(db.ada, esi=3, status="called")
     store.handle_event(db.conn, {"visitId": called, "action": "call"}, LAGOS)
     other = db.visit(db.bola, esi=3, status="called")
     store.handle_event(db.conn, {"visitId": other, "action": "call"}, LAGOS)
 
-    app = create_app(Settings(database_url=DSN, listen=False), verifier=TokenIsUserId())
-    client = app.test_client()
+    client = make_client()
     auth = {"Authorization": f"Bearer {db.ada_user}"}
 
     assert client.get("/api/notifications").status_code == 401
@@ -158,3 +171,89 @@ def test_listener_turns_live_events_into_notifications(db):
     finally:
         stop.set()
         thread.join(timeout=10)
+
+
+def kinds(db, user_id):
+    return [r[0] for r in db.conn.execute(
+        "SELECT kind FROM notifications_notification WHERE recipient_id = %s ORDER BY id", (user_id,))]
+
+
+def test_urgent_arrival_pages_rostered_clinicians_else_all(db):
+    doctor = db.user("doc", "doctor")
+    urgent = db.visit(db.bola, esi=2)
+    store.handle_event(db.conn, {"visitId": urgent, "action": "checked_in"}, LAGOS)
+    # Nobody rostered: every active doctor and nurse is paged, not reception or lab.
+    assert kinds(db, doctor) == ["visit.urgent"] and kinds(db, db.nurse) == ["visit.urgent"]
+    assert kinds(db, db.reception) == [] and kinds(db, db.lab) == []
+
+    # With a roster for now, only the rostered clinician is paged.
+    db.conn.execute("""INSERT INTO clinic_staffshift (user_id, department_id, weekday, starts, ends)
+                       VALUES (%s, %s, extract(dow FROM now() AT TIME ZONE 'Africa/Lagos'), '00:00', '23:59:59')""", (doctor, db.opd))
+    second = db.visit(db.ada, esi=1)
+    store.handle_event(db.conn, {"visitId": second, "action": "checked_in"}, LAGOS)
+    assert kinds(db, doctor).count("visit.urgent") == 2 and kinds(db, db.nurse).count("visit.urgent") == 1
+
+
+def test_escalation_pages_and_queue_front_hears_it_is_near(db):
+    first = db.visit(db.bola, esi=3, waited=30)
+    mine = db.visit(db.ada, esi=4, waited=20)
+    db.conn.execute("""INSERT INTO patients_triagechange (visit_id, from_esi, to_esi, reason, changed_by_id, changed_at)
+                       VALUES (%s, 4, 2, 'x', %s, now())""", (first, db.nurse))
+    db.conn.execute("UPDATE patients_visit SET esi = 2 WHERE id = %s", (first,))
+    store.handle_event(db.conn, {"visitId": first, "action": "triage"}, LAGOS)
+    assert "visit.urgent" in kinds(db, db.nurse)
+    assert kinds(db, db.ada_user) == ["visit.near"]  # one person (the escalated patient) ahead
+    assert db.inbox(db.ada_user) == ["Your turn is near"]
+    store.handle_event(db.conn, {"visitId": first, "action": "triage"}, LAGOS)
+    assert kinds(db, db.ada_user) == ["visit.near"], "once per visit"
+    assert mine
+
+
+def test_opt_out_skips_the_channel(db):
+    store.set_preferences(db.conn, db.ada_user, {"sms": False})
+    called = db.visit(db.ada, esi=3, status="called")
+    [nid] = store.handle_event(db.conn, {"visitId": called, "action": "call"}, LAGOS, [LogEmail(), LogSMS()])
+    got = dict(db.conn.execute("SELECT channel, status FROM notifications_delivery WHERE notification_id = %s", (nid,)).fetchall())
+    assert got == {"email": "sent", "sms": "skipped"}
+
+
+def test_failed_delivery_is_retried_with_backoff(db):
+    class Down(LogEmail):
+        def send(self, to, message):
+            raise RuntimeError("provider down")
+
+    called = db.visit(db.ada, esi=3, status="called")
+    store.handle_event(db.conn, {"visitId": called, "action": "call"}, LAGOS, [Down()])
+    status, attempts, due = db.conn.execute(
+        "SELECT status, attempts, next_attempt_at > now() FROM notifications_delivery").fetchone()
+    assert (status, attempts, due) == ("failed", 1, True)
+    assert store.retry_failed(db.conn, [LogEmail()]) == 0, "not due yet"
+    db.conn.execute("UPDATE notifications_delivery SET next_attempt_at = now() - interval '1 second'")
+    assert store.retry_failed(db.conn, [LogEmail()]) == 1
+    assert db.conn.execute("SELECT status, attempts, next_attempt_at FROM notifications_delivery").fetchone() == ("sent", 2, None)
+
+
+def test_scheduled_reminders_and_delays_once(db):
+    db.appointment(db.ada, db.ada_user, status="confirmed", at="now() + interval '30 minutes'")
+    db.appointment(db.ada, db.ada_user, status="confirmed", at="now() + interval '23 hours 30 minutes'")
+    db.appointment(db.ada, db.ada_user, status="confirmed", at="now() + interval '5 hours'")   # not due
+    db.appointment(db.ada, db.ada_user, status="requested", at="now() + interval '30 minutes'")  # not confirmed
+    db.visit(db.bola, esi=4, waited=90)
+    db.visit(db.bola, esi=4, waited=10)
+    first = store.run_scheduled(db.conn, LAGOS, [])
+    assert first == {"reminders": 2, "delays": 1, "retried": 0}
+    assert store.run_scheduled(db.conn, LAGOS, []) == {"reminders": 0, "delays": 0, "retried": 0}
+    assert sorted(db.inbox(db.ada_user)) == ["Appointment soon", "Appointment tomorrow"]
+    bola = db.conn.execute("SELECT user_id FROM patients_patient WHERE id = %s", (db.bola,)).fetchone()[0]
+    assert db.inbox(bola) == ["Sorry for the wait"]
+
+
+def test_preferences_api(db, make_client):
+    client = make_client()
+    auth = {"Authorization": f"Bearer {db.ada_user}"}
+    assert client.get("/api/notifications/preferences", headers=auth).get_json() == {"in_app": True, "email": True, "sms": True}
+    assert client.put("/api/notifications/preferences", headers=auth, json={"sms": False}).get_json()["sms"] is False
+    assert client.put("/api/notifications/preferences", headers=auth, json={"sms": "no"}).status_code == 400
+    assert client.put("/api/notifications/preferences", headers=auth, json={"in_app": False}).status_code == 400
+    assert client.get("/api/notifications/preferences", headers=auth).get_json()["sms"] is False
+

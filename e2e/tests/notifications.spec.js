@@ -61,3 +61,30 @@ test("front desk hears about appointment requests and the patient hears back", a
   expect(confirmed.body).toMatch(/^Outpatient Department, \w{3} \d{2} \w{3}, 10:00\. Note from the clinic: Bring your health card$/);
   await api(`/api/appointments/${appt.id}/cancel`, { token: studentToken, method: "POST" });
 });
+
+test("an ESI 2 arrival pages the nurse, who opens the queue from the alert", async ({ page }) => {
+  const admin = await token("admin", "admin123");
+  const nurse = await token("nurse", "nurse123");
+  const opd = await department();
+  const patient = await api("/api/patients", { token: admin, method: "POST", body: { fullName: `Urgent ${unique()}`, sex: "Male", phone: "0" } });
+  const visit = await api("/api/visits", { token: admin, method: "POST", body: { patient: patient.id, department: opd.id, esi: 2 } });
+  await waitForNotification(nurse, "Urgent patient waiting");
+
+  await signInStaff(page, "nurse", "nurse123");
+  await page.getByRole("button", { name: /^Notifications/ }).click();
+  await page.getByRole("button", { name: /Urgent patient waiting.*ESI 2 patient is waiting in Outpatient Department/ }).first().click();
+  await expect(page.getByRole("heading", { name: "Queue" })).toBeVisible();
+  await api(`/api/visits/${visit.id}/cancel`, { token: admin, method: "POST" });
+});
+
+test("student turns SMS off", async ({ page }) => {
+  const student = await linkedStudent();
+  await signInStudent(page, student.matric, student.password);
+  await page.getByRole("button", { name: "Notifications", exact: true }).click();
+  const sms = page.getByLabel("SMS");
+  await expect(sms).toBeChecked();
+  await sms.uncheck();
+  await expect(sms).not.toBeChecked();
+  const prefs = await api("/api/notifications/preferences", { token: await token(student.matric, student.password) });
+  expect(prefs).toEqual({ in_app: true, email: true, sms: false });
+});

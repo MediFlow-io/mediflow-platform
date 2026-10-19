@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
 import {
-  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyQueue, getNotifications, isSignedIn,
+  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyQueue, getNotificationPreferences,
+  getNotifications, isSignedIn, setNotificationPreferences,
   markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
 } from "./api";
 
@@ -57,6 +58,40 @@ function NotificationItem({ n, onOpen, compact }) {
   );
 }
 
+function DeliveryPreferences() {
+  const [prefs, setPrefs] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    getNotificationPreferences().then(setPrefs, () => setPrefs(null));
+  }, []);
+  if (!prefs) return null;
+  async function toggle(channel) {
+    const before = prefs;
+    setPrefs({ ...prefs, [channel]: !prefs[channel] }); // show the change at once; undo it if saving fails
+    setSaving(true);
+    try {
+      setPrefs(await setNotificationPreferences({ [channel]: !before[channel] }));
+    } catch {
+      setPrefs(before);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <fieldset className="mt-5 pt-4 grid gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+      <legend className="text-sm font-semibold" style={{ color: C.ink }}>Also tell me by</legend>
+      {[["email", "Email"], ["sms", "SMS"]].map(([channel, label]) => (
+        <label key={channel} className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={prefs[channel]} disabled={saving} onChange={() => toggle(channel)} /> {label}
+        </label>
+      ))}
+      <p className="text-xs" style={{ color: "#5B6F8F" }}>
+        Emails and texts only say you have a new notification. The details stay in this app.
+      </p>
+    </fieldset>
+  );
+}
+
 function Notifications({ data, failed, onOpen, onReadAll }) {
   return (
     <Card title="Notifications" right={data?.unread > 0 && (
@@ -70,6 +105,7 @@ function Notifications({ data, failed, onOpen, onReadAll }) {
           {data.results.map((n) => <li key={n.id}><NotificationItem n={n} onOpen={onOpen} /></li>)}
         </ul>
       )}
+      <DeliveryPreferences />
     </Card>
   );
 }

@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, g, jsonify, request
 from psycopg_pool import ConnectionPool
 
-from . import channels, listener, store
+from . import channels, listener, scheduler, store
 from .auth import AuthError, Verifier
 from .config import Settings
 
@@ -29,6 +29,7 @@ def create_app(settings: Settings | None = None, verifier: Verifier | None = Non
     app.extensions["mediflow"] = {"pool": pool, "settings": settings}
     if settings.listen:
         app.extensions["mediflow"]["stop"] = listener.start(settings.database_url, tz, senders)
+        app.extensions["mediflow"]["scheduler"] = scheduler.start(settings.database_url, tz, senders)
 
     def error(status: int, detail: str):
         return jsonify(detail=detail), status
@@ -86,6 +87,22 @@ def create_app(settings: Settings | None = None, verifier: Verifier | None = Non
     def read_all():
         updated = store.mark_all_read(g.conn, g.user_id)
         return jsonify(updated=updated, unread=0)
+
+    @app.get("/api/notifications/preferences")
+    @signed_in
+    def get_preferences():
+        return jsonify(in_app=True, **store.preferences(g.conn, g.user_id))
+
+    @app.put("/api/notifications/preferences")
+    @signed_in
+    def put_preferences():
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return error(400, "Send a JSON object, e.g. {\"sms\": false}.")
+        changes = {k: body[k] for k in ("email", "sms") if k in body}
+        if not changes or any(not isinstance(v, bool) for v in changes.values()):
+            return error(400, "Set email and/or sms to true or false. In-app notifications can't be turned off.")
+        return jsonify(in_app=True, **store.set_preferences(g.conn, g.user_id, changes))
 
     @app.errorhandler(404)
     def not_found(_):

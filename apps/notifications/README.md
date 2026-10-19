@@ -1,8 +1,18 @@
 # Notifications (Flask)
 
-Tells people when something changes for them: a patient is called, checked in or next in line, or an
-appointment is booked, confirmed, declined or cancelled. Front-desk staff hear about new appointment requests and
-appointments that patients cancel. Ownership is set in [ADR-0002](../../docs/handbook/decisions/ADR-0002-service-ownership.md).
+Tells people when something changes for them. Ownership is set in [ADR-0002](../../docs/handbook/decisions/ADR-0002-service-ownership.md).
+
+| Who | When | Trigger |
+|---|---|---|
+| Patient | Called, checked in, cancelled | event |
+| Patient | You're next; your turn is near (within `turn_near_ahead` of the front) | event |
+| Patient | Appointment booked, confirmed, declined, cancelled by the clinic | event |
+| Patient | Appointment reminder about a day before, and within the hour | scheduled |
+| Patient | Waiting longer than `long_wait_minutes` ("Sorry for the wait") | scheduled |
+| Front desk | New appointment request; appointment cancelled by the patient | event |
+| Doctors and nurses | ESI 1–2 patient arrives or is escalated to ESI 1–2 (those rostered for the department now; everyone clinical if nobody is) | event |
+
+Thresholds come from the clinic settings (`/api/clinic/queue-settings`).
 
 ```
 patient-flow (Go) ──pg_notify('mediflow_visits')──▶ listener ──▶ rules.plan() ──▶ notifications_notification
@@ -20,6 +30,7 @@ All endpoints need an access token (`Authorization: Bearer ...`) and only ever r
 | `GET /api/notifications/unread-count` | `{unread}`, for the bell |
 | `POST /api/notifications/{id}/read` | Mark one read. Someone else's → `404` |
 | `POST /api/notifications/read-all` | Mark all read |
+| `GET` / `PUT /api/notifications/preferences` | `{in_app, email, sms}`. Email and SMS can be turned off; in-app can't |
 | `GET /healthz` | Database check |
 
 The full contract is in [`docs/api/core.yaml`](../../docs/api/core.yaml).
@@ -31,11 +42,17 @@ The full contract is in [`docs/api/core.yaml`](../../docs/api/core.yaml).
 | `app/rules.py` | Which notifications an event produces. Pure functions, no I/O. Start here to change wording or add a rule |
 | `app/store.py` | All SQL. Loads the facts an event refers to and inserts the notifications. `dedupe_key` is unique, so an event handled twice notifies once |
 | `app/listener.py` | `LISTEN mediflow_visits` in a background thread, reconnecting with backoff |
+| `app/scheduler.py` | Every minute: reminders, long-delay notices, email/SMS retries. One runner across replicas (PostgreSQL advisory lock) |
 | `app/channels.py` | Email/SMS hooks. Built-in ones only log. To go live, add a class with `address()` and `send()` and register it in `CHANNELS` |
 | `app/auth.py` | RS256 token check against the core API's JWKS (same rules as the Go services) |
 
+Failed email/SMS deliveries are retried after 2 and 4 minutes (3 attempts), then left as `failed` in
+`notifications_delivery`. Channels a person turned off are recorded as `skipped`.
+
+Not built yet: web push and inbound webhooks (delivery receipts). Both depend on choosing a provider.
+
 Privacy:
-- Notification text never includes the complaint, vitals or triage level: only where and when.
+- Text for patients never includes the complaint, vitals or triage level: only where and when. Staff alerts may name the ESI level (shown on the queue anyway), never the complaint.
 - Email and SMS carry a generic "you have a new notification" message. The content stays behind the login.
 - The patient's own words (an appointment's reason) are never copied into notifications.
 
