@@ -36,6 +36,7 @@ type Store interface {
 	ListAppointments(ctx context.Context, f store.AppointmentFilter) ([]store.Appointment, error)
 	CreateAppointment(ctx context.Context, actor store.User, in store.NewAppointment) (store.Appointment, error)
 	AppointmentAction(ctx context.Context, actor store.User, id int64, action string, up store.AppointmentUpdate) (store.Appointment, error)
+	Schedule(ctx context.Context, departmentID int64, base flow.Schedule) (flow.Schedule, error)
 }
 
 type TokenVerifier interface {
@@ -50,7 +51,7 @@ type Server struct {
 	Log       *slog.Logger
 	Now       func() time.Time
 	Heartbeat time.Duration // keep-alive interval for the event stream
-	Schedule  flow.Schedule // bookable clinic hours for appointments
+	Schedule  flow.Schedule // fallback clinic hours (CLINIC_HOURS/CLINIC_DAYS) until the admin console sets them
 }
 
 func (s *Server) Routes() http.Handler {

@@ -227,7 +227,7 @@ paths:
       summary: The caller's own appointments, newest first, plus the clinic's bookable hours
       responses:
         "200":
-          description: "{linked, schedule, appointments}"
+          description: "{linked, schedule, holidays: [{date, name}], appointments}"
   /api/appointments/{id}/{action}:
     parameters:
       - {name: id, in: path, required: true, schema: {type: integer}}
@@ -279,6 +279,61 @@ paths:
     post:
       summary: Mark all of the caller's notifications read
       responses: {"200": {description: "{updated, unread}"}, "401": {$ref: "#/components/responses/Error"}}
+  /api/clinic/settings:
+    get:
+      summary: Clinic settings in one call (any signed-in user)
+      description: |
+        `{queue, hours, holidays}` and, for staff, `onDutyNow` (staff on shift right now, counted by role).
+        Weekdays are 0 = Sunday … 6 = Saturday. Hours with `department: null` are the clinic default; a
+        department with its own rows uses those instead. A weekday with no row is closed. Until any hours
+        are saved, patient-flow uses CLINIC_HOURS / CLINIC_DAYS. Only upcoming holidays are listed.
+      responses: {"200": {description: OK}, "401": {$ref: "#/components/responses/Error"}}
+  /api/clinic/queue-settings:
+    get:
+      summary: ESI target minutes, long-wait threshold, "turn is near" threshold, booking rules
+      responses: {"200": {description: OK}}
+    put:
+      summary: Change any subset (admin). Audited as settings.queue_updated
+      description: |
+        Fields: `esi1_target_minutes` … `esi5_target_minutes`, `long_wait_minutes`, `turn_near_ahead`,
+        `slot_minutes` (must divide a day), `max_days_ahead`, `min_notice_minutes`, `max_open_appointments`.
+      responses: {"200": {description: Saved}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}}
+  /api/clinic/hours:
+    get:
+      summary: All service hours
+      responses: {"200": {description: "[{department, weekday, day, opens, closes}]"}}
+    put:
+      summary: "Replace a department's week (admin); `department: null` is the clinic default; `days: []` removes a department's own hours"
+      requestBody:
+        content:
+          application/json:
+            example: {department: null, days: [{weekday: 1, opens: "08:00", closes: "16:00"}]}
+      responses: {"200": {description: Saved}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}}
+  /api/clinic/holidays:
+    get:
+      summary: Holidays (`?upcoming=1` for today onwards)
+      responses: {"200": {description: "[{id, date, name}]"}}
+    post:
+      summary: Add a holiday (admin). No appointments can be booked on it
+      responses: {"201": {description: Created}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}}
+  /api/clinic/holidays/{id}:
+    delete:
+      summary: Remove a holiday (admin)
+      responses: {"204": {description: Removed}}
+  /api/clinic/shifts:
+    get:
+      summary: Staff shifts (staff only); filters `?department=` `?user=` `?weekday=`
+      responses: {"200": {description: "[{id, user, user_name, role, department, department_name, weekday, day, starts, ends}]"}}
+    post:
+      summary: Add a shift for an active staff member (admin)
+      responses: {"201": {description: Created}, "400": {$ref: "#/components/responses/Error"}}
+  /api/clinic/shifts/{id}:
+    patch:
+      summary: Change a shift (admin)
+      responses: {"200": {description: Saved}}
+    delete:
+      summary: Remove a shift (admin)
+      responses: {"204": {description: Removed}}
   /api/me/health:
     get:
       summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.

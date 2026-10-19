@@ -60,6 +60,8 @@ type AppointmentUpdate struct {
 	CheckIn      *CheckIn   // check_in: ESI and observations for the new visit
 	// CheckInAllowed is asked before checking in, with the slot time; "" means allowed.
 	CheckInAllowed func(scheduledFor time.Time) string
+	// SlotAllowed is asked before moving the slot, with the appointment's department; "" means allowed.
+	SlotAllowed func(departmentID int64, t time.Time) (string, error)
 }
 
 const appointmentSelect = `
@@ -176,7 +178,11 @@ func (s *Store) CreateAppointment(ctx context.Context, actor User, in NewAppoint
 			in.PatientID, apptStatuses(flow.OpenAppointment)).Scan(&open); err != nil {
 			return err
 		}
-		if open >= flow.MaxOpenAppointmentsPerPatient {
+		qs, _, err := loadQueueSettings(ctx, tx)
+		if err != nil {
+			return err
+		}
+		if open >= qs.MaxOpenAppointments {
 			return ValidationError{"non_field_errors": {fmt.Sprintf(
 				"There are already %d upcoming appointments for this patient. Cancel one before booking another.", open)}}
 		}
@@ -247,6 +253,15 @@ func (s *Store) AppointmentAction(ctx context.Context, actor User, id int64, act
 		}
 		details := map[string]any{"status": string(a.To)}
 		if action == "confirm" && up.ScheduledFor != nil && !up.ScheduledFor.Equal(scheduledFor) {
+			if up.SlotAllowed != nil {
+				msg, err := up.SlotAllowed(departmentID, *up.ScheduledFor)
+				if err != nil {
+					return err
+				}
+				if msg != "" {
+					return ValidationError{"time": {msg}}
+				}
+			}
 			add("scheduled_for", *up.ScheduledFor)
 			details["rescheduled"] = true
 		}

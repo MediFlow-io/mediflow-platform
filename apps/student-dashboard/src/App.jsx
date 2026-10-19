@@ -316,7 +316,10 @@ function Appointments({ data, reload }) {
         </button>
       }
     >
-      <p className="text-sm mb-4" style={{ color: "#5B6F8F" }}>The clinic takes appointments {data.schedule}. The clinic confirms each request.</p>
+      <p className="text-sm mb-4" style={{ color: "#5B6F8F" }}>
+        The clinic takes appointments {data.schedule}. The clinic confirms each request.
+        {data.holidays?.length > 0 && <> Closed on {data.holidays.slice(0, 3).map((h) => `${fmt(h.date)} (${h.name})`).join(", ")}.</>}
+      </p>
       {error && <div role="alert" className="rounded-xl p-3 mb-4 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>}
       {open && (
         <form onSubmit={submit} className="grid gap-3 md:grid-cols-4 p-4 rounded-2xl mb-5" style={{ background: C.mist }}>

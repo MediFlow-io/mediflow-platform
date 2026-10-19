@@ -55,7 +55,7 @@ JWKS_URL=http://localhost:8000/api/auth/jwks go run ./cmd/patient-flow     # :80
 | `JWT_ISSUER` / `JWT_AUDIENCE` | `mediflow-core` / `mediflow` | Must match the core API |
 | `TIME_ZONE` | `Africa/Lagos` | Defines "today" and the queue's HH:MM |
 | `PORT` | `8090` | |
-| `CLINIC_HOURS` / `CLINIC_DAYS` | `08:00-16:00` / `Mon-Fri` | Bookable appointment hours (15-minute slots, up to 60 days ahead) |
+| `CLINIC_HOURS` / `CLINIC_DAYS` | `08:00-16:00` / `Mon-Fri` | Fallback appointment hours, used until hours are saved in the clinic settings (`/api/clinic/hours`). Holidays, slot length, booking window and the per-patient limit also come from the settings when saved |
 
 ## Test
 

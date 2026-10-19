@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -65,11 +67,16 @@ func (s *Server) parseSlot(fields map[string]json.RawMessage, problems store.Val
 		problems["date"] = []string{"Give a date (YYYY-MM-DD) and a time (HH:MM)."}
 		return nil
 	}
-	if msg := s.Schedule.Validate(t, s.Now()); msg != "" {
-		problems["time"] = []string{msg}
-		return nil
-	}
 	return &t
+}
+
+// checkSlot validates t against the department's schedule (0 = clinic-wide). "" means bookable.
+func (s *Server) checkSlot(ctx context.Context, departmentID int64, t time.Time) (string, error) {
+	sched, err := s.Store.Schedule(ctx, departmentID, s.Schedule)
+	if err != nil {
+		return "", err
+	}
+	return sched.Validate(t, s.Now()), nil
 }
 
 func stringField(fields map[string]json.RawMessage, name string, max int, problems store.ValidationError) string {
@@ -127,7 +134,13 @@ func (s *Server) listAppointments(w http.ResponseWriter, r *http.Request) {
 // GET /api/appointments/mine: the caller's own appointments (e.g. the student dashboard).
 func (s *Server) myAppointments(w http.ResponseWriter, r *http.Request) {
 	user := userFrom(r)
-	resp := map[string]any{"linked": false, "schedule": s.Schedule.Describe(), "appointments": []appointmentJSON{}}
+	sched, err := s.Store.Schedule(r.Context(), 0, s.Schedule)
+	if err != nil {
+		s.fail(w, r, err)
+		return
+	}
+	resp := map[string]any{"linked": false, "schedule": sched.Describe(), "holidays": upcomingHolidays(sched),
+		"appointments": []appointmentJSON{}}
 	patientID, err := s.Store.PatientIDForUser(r.Context(), user.ID)
 	if errors.Is(err, store.ErrNotFound) {
 		writeJSON(w, http.StatusOK, resp)
@@ -189,6 +202,16 @@ func (s *Server) createAppointment(w http.ResponseWriter, r *http.Request) {
 	in.Reason = stringField(fields, "reason", 300, problems)
 	if slot := s.parseSlot(fields, problems, true); slot != nil {
 		in.ScheduledFor = *slot
+		if in.DepartmentID != 0 {
+			msg, err := s.checkSlot(r.Context(), in.DepartmentID, *slot)
+			if err != nil {
+				s.fail(w, r, err)
+				return
+			}
+			if msg != "" {
+				problems["time"] = []string{msg}
+			}
+		}
 	}
 	if len(problems) > 0 {
 		writeJSON(w, http.StatusBadRequest, problems)
@@ -232,6 +255,8 @@ func (s *Server) appointmentAction(w http.ResponseWriter, r *http.Request) {
 		}
 	case "confirm":
 		up.ScheduledFor = s.parseSlot(fields, problems, false)
+		ctx := r.Context()
+		up.SlotAllowed = func(departmentID int64, t time.Time) (string, error) { return s.checkSlot(ctx, departmentID, t) }
 	case "check_in":
 		in := store.CheckIn{}
 		if raw, present := fields["esi"]; !present || string(raw) == "null" {
@@ -260,4 +285,18 @@ func (s *Server) appointmentAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, s.appointmentOut(a, !flow.CanManageAppointments(user.Role)))
+}
+
+type holidayJSON struct {
+	Date string `json:"date"`
+	Name string `json:"name"`
+}
+
+func upcomingHolidays(sched flow.Schedule) []holidayJSON {
+	out := []holidayJSON{}
+	for day, name := range sched.Holidays {
+		out = append(out, holidayJSON{day, name})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Date < out[j].Date })
+	return out
 }

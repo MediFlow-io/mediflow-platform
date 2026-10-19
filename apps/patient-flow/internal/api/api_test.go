@@ -38,24 +38,26 @@ func (fakeTokens) Verify(_ context.Context, token string) (*auth.Claims, error) 
 }
 
 type fakeStore struct {
-	users       map[int64]store.User
-	visits      []store.Visit
-	today       []store.DashboardRow
-	active      []store.DashboardRow
-	checkInErr  error
-	gotFilter   store.VisitFilter
-	gotCheckIn  store.CheckIn
-	gotPatch    store.VisitPatch
-	transitions []string
-	reportRows  []store.ReportRow
-	appts       []store.Appointment
-	links       map[int64]int64 // user id -> patient id
-	gotAppt     store.NewAppointment
-	gotAction   string
-	gotUpdate   store.AppointmentUpdate
-	apptErr     error
-	reportSince time.Time
-	reportUntil time.Time
+	users           map[int64]store.User
+	visits          []store.Visit
+	today           []store.DashboardRow
+	active          []store.DashboardRow
+	checkInErr      error
+	gotFilter       store.VisitFilter
+	gotCheckIn      store.CheckIn
+	gotPatch        store.VisitPatch
+	transitions     []string
+	reportRows      []store.ReportRow
+	appts           []store.Appointment
+	links           map[int64]int64 // user id -> patient id
+	gotAppt         store.NewAppointment
+	gotAction       string
+	gotUpdate       store.AppointmentUpdate
+	apptErr         error
+	reportSince     time.Time
+	reportUntil     time.Time
+	schedule        *flow.Schedule // overrides the base schedule when set
+	gotScheduleDept int64
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
