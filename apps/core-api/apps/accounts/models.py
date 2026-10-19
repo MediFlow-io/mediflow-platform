@@ -17,3 +17,13 @@ class User(AbstractUser):
     @property
     def can_manage_users(self):
         return self.role == self.Role.ADMIN
+
+
+class TotpDevice(models.Model):
+    """An authenticator app (TOTP) for two-factor sign-in. Unconfirmed until the first code is checked."""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="totp_device")
+    secret = models.CharField(max_length=64)
+    confirmed_at = models.DateTimeField(null=True, blank=True)
+    # The last accepted time step, so a code can't be used twice.
+    last_step = models.BigIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)

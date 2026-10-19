@@ -34,6 +34,7 @@ services:
       AI_SERVICE_URL: http://ai:8001
       AI_SERVICE_TOKEN: *ai-token
       SEED_DEMO: ${SEED_DEMO:-true}
+      MFA_REQUIRED_ROLES: ${MFA_REQUIRED_ROLES:-}
     # Migrate, optionally seed demo data (dev only), then serve.
     command: >
       sh -c "python manage.py migrate --noinput &&

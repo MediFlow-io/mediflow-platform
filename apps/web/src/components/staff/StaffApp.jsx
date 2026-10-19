@@ -4,6 +4,7 @@ import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { can } from "../../lib/roles";
 import ChangePasswordForm from "../ChangePasswordForm";
+import TwoFactorSettings from "../TwoFactorSettings";
 import { PageHeader } from "../ui";
 import DashboardPage from "./DashboardPage";
 import PatientsPage from "./PatientsPage";
@@ -59,6 +60,11 @@ export default function StaffApp() {
         </div>
       </aside>
       <main className="content">
+        {user.mfaSetupRequired && current !== "account" && (
+          <div className="info-box" role="status">
+            Your role needs two-step sign-in. <button type="button" className="btn-link" onClick={() => setCurrent("account")}>Set it up in My account</button>.
+          </div>
+        )}
         <Page onNavigate={navigate} onUnreadChange={unread.reload} />
       </main>
     </div>
@@ -73,6 +79,10 @@ function AccountPage() {
       <section className="panel narrow">
         <h2>Change password</h2>
         <ChangePasswordForm />
+      </section>
+      <section className="panel narrow">
+        <h2>Two-step sign-in</h2>
+        <TwoFactorSettings />
       </section>
     </>
   );

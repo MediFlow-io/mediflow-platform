@@ -10,6 +10,8 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/login', [AuthController::class, 'show'])->name('login');
 Route::post('/login', [AuthController::class, 'login'])->middleware('throttle:10,1');
+Route::get('/login/code', [AuthController::class, 'showCode'])->name('login.code');
+Route::post('/login/code', [AuthController::class, 'verifyCode'])->middleware('throttle:10,1');
 
 Route::middleware('admin')->group(function () {
     Route::get('/', DashboardController::class)->name('dashboard');

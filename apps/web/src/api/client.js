@@ -118,6 +118,13 @@ export const authApi = {
 
   me: () => request("/api/me"),
 
+  // Two-step sign-in (authenticator app).
+  verifyMfa: (mfa_token, code) => request("/api/auth/mfa/verify", { method: "POST", body: { mfa_token, code }, auth: false }),
+  mfaStatus: () => request("/api/auth/mfa/status"),
+  mfaSetup: () => request("/api/auth/mfa/setup", { method: "POST" }),
+  mfaConfirm: (code) => request("/api/auth/mfa/confirm", { method: "POST", body: { code } }),
+  mfaDisable: (password, code) => request("/api/auth/mfa/disable", { method: "POST", body: { password, code } }),
+
   // The server revokes all refresh tokens on a password change and returns a new pair.
   changePassword: async (payload) => {
     const data = await request("/api/auth/change-password", { method: "POST", body: payload });
@@ -189,6 +196,7 @@ export const mediflowApi = {
   updatePatient: (id, payload) => request(`/api/patients/${id}`, { method: "PATCH", body: payload }),
   users: (params) => request(`/api/users${qs(params)}`),
   updateUser: (id, payload) => request(`/api/users/${id}`, { method: "PATCH", body: payload }),
+  resetMfa: (id) => request(`/api/users/${id}/reset-mfa`, { method: "POST" }),
   triageSuggestion: (payload) => request("/api/ai/triage", { method: "POST", body: payload }),
   appointments: (params) => request(`/api/appointments${qs(params)}`),
   bookAppointment: (payload) => request("/api/appointments", { method: "POST", body: payload }),

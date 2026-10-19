@@ -22,9 +22,13 @@ paths:
               properties:
                 unique_id: {type: string, description: "Also accepted as staffId, username or email."}
                 password: {type: string}
+      description: |
+        If the account has two-step sign-in on, the answer is `{mfa_required: true, mfa_token, detail}` and no
+        tokens: send the code to /api/auth/mfa/verify within 5 minutes. If the account's role is in
+        MFA_REQUIRED_ROLES but it isn't set up yet, the normal answer adds `mfa_setup_required: true`.
       responses:
         "200":
-          description: User profile plus a token pair
+          description: User profile plus a token pair (or the two-step challenge)
           content:
             application/json:
               schema:
@@ -32,9 +36,40 @@ paths:
                   - $ref: "#/components/schemas/User"
                   - $ref: "#/components/schemas/TokenPair"
         "401": {$ref: "#/components/responses/Error"}
+        "429": {description: Too many attempts (per IP and username)}
+  /api/auth/mfa/verify:
+    post:
+      summary: "Second sign-in step {mfa_token, code}: the 6-digit authenticator code. Same answer as a login"
+      description: Codes can't be reused. Limited per IP like login.
+      responses: {"200": {description: User profile plus a token pair}, "401": {$ref: "#/components/responses/Error"}}
+  /api/auth/mfa/status:
+    get:
+      summary: "{enabled, required} for the signed-in staff member"
+      security: [{bearer: []}]
+      responses: {"200": {description: OK}}
+  /api/auth/mfa/setup:
+    post:
+      summary: "Start setup: {secret, otpauthUri, qrSvg (data URI)}. 409 while it's on. Staff only"
+      security: [{bearer: []}]
+      responses: {"200": {description: OK}, "409": {description: Already on}}
+  /api/auth/mfa/confirm:
+    post:
+      summary: "Finish setup with the first code {code}; two-step sign-in is on from now"
+      security: [{bearer: []}]
+      responses: {"200": {description: On}, "400": {$ref: "#/components/responses/Error"}}
+  /api/auth/mfa/disable:
+    post:
+      summary: "Turn it off {password, code}. Refused (400) when the role requires it"
+      security: [{bearer: []}]
+      responses: {"200": {description: Off}, "400": {$ref: "#/components/responses/Error"}}
+  /api/users/{id}/reset-mfa:
+    post:
+      summary: "Admin: remove a staff member's authenticator (lost phone). They sign in with the password and set it up again"
+      security: [{bearer: []}]
+      responses: {"200": {description: "{reset: true|false}"}, "403": {$ref: "#/components/responses/Error"}}
   /api/auth/token/refresh:
     post:
-      summary: Rotate a refresh token. The presented token is revoked; reuse returns 401.
+      summary: Rotate a refresh token. The presented token is revoked; reuse returns 401. Limited per IP (REFRESH_RATE_LIMIT, 60/min).
       requestBody:
         content:
           application/json:

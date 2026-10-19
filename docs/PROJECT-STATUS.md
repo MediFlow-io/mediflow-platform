@@ -435,6 +435,8 @@ All are listed with defaults in [`.env.example`](../.env.example).
 | Gateway: `DJANGO_BASE_URL`, `ALLOWED_ORIGIN`, `PORT` | `http://localhost:8000`, `http://localhost:5173`, `8080` | Gateway settings |
 | `VITE_GATEWAY_URL` / `VITE_API_URL` | empty = same origin | Where the web app sends auth / API requests. Leave empty: Nginx (Docker) and the Vite dev proxy route `/api/auth/*` to the gateway and `/api/*` to Django |
 | `MEDIFLOW_GATEWAY` / `MEDIFLOW_API` / `MEDIFLOW_FLOW` / `MEDIFLOW_NOTIFY` | `http://localhost:8080` / `:8000` / `:8090` / `:8095` | Vite dev-proxy targets (`npm run dev` only) |
+| `MFA_REQUIRED_ROLES` (core API) | empty | Roles that must use two-step sign-in, e.g. `admin,doctor,nurse`. Empty: optional for all staff |
+| `REFRESH_RATE_LIMIT` / `LOGIN_RATE_LIMIT` | `60/min` / `10/min` | Token refresh per IP; login per IP and username |
 | `NOTIFY_CHANNELS` (notifications) | empty = in-app only | `email`, `sms`: extra channels. Log-only until a provider class is added in `apps/notifications/app/channels.py` |
 | `LISTEN_EVENTS` (notifications) | `1` | `0` runs the API without the event listener (e.g. a second replica) |
 | `JWKS_URL` / `TIME_ZONE` (patient-flow) | `http://localhost:8000/api/auth/jwks` / `Africa/Lagos` | Where Go gets signing keys; the hospital's local day |
@@ -507,11 +509,12 @@ Labels use route patterns, never raw URLs, so record IDs don't leak into metrics
 ### 5.2 Remaining work, by priority
 
 **P0: security and correctness**
-- [ ] Rate-limit login and refresh (brute-force protection). AI endpoints are already limited.
+- [x] Rate-limit login and refresh (brute-force protection). AI endpoints are already limited.
+- [x] Two-step sign-in (authenticator app) for staff; `MFA_REQUIRED_ROLES` makes it mandatory per role.
 - [ ] Schedule `python manage.py flushexpiredtokens` (for example, a daily job).
-- [ ] Audit **patient record reads and writes**.
+- [x] Audit **patient record reads and writes** (patients and EMR).
 - [ ] Enforce password validators in all modes (currently off when `DEBUG=true`).
-- [ ] Move tokens out of `localStorage`, or harden against XSS (CSP).
+- [x] Harden against XSS: strict Content-Security-Policy on both React apps (tokens are still in `localStorage`).
 - [ ] Encrypt sensitive patient fields at rest.
 - [ ] TLS: put HTTPS in front of Nginx (certificates or a cloud load balancer).
 - [ ] Confirm the CI `stack` job passes on the first PR (first real Docker run).

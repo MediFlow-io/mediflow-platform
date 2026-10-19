@@ -19,9 +19,15 @@ class MediflowClient
 {
     public const SESSION_KEY = 'mediflow';
 
+    /** Holds the two-step sign-in challenge between the password and the code (server side only). */
+    public const MFA_KEY = 'mediflow_mfa';
+
     public function __construct(private readonly Session $session) {}
 
-    /** Sign in through the gateway. Only administrators may use the admin console. */
+    /**
+     * Sign in through the gateway. Only administrators may use the admin console.
+     * Returns ['mfa_required' => true] when the account uses two-step sign-in: call verifyMfa() next.
+     */
     public function login(string $username, string $password): array
     {
         $response = $this->send('post', config('mediflow.gateway_url').'/api/auth/login',
@@ -30,6 +36,43 @@ class MediflowClient
             throw MediflowException::fromResponse($response->status(), $response->json());
         }
         $data = $response->json();
+        if (! empty($data['mfa_required'])) {
+            $this->session->put(self::MFA_KEY, $data['mfa_token']);
+
+            return ['mfa_required' => true];
+        }
+
+        return $this->startSession($data);
+    }
+
+    public function awaitingMfa(): bool
+    {
+        return $this->session->has(self::MFA_KEY);
+    }
+
+    /** Second sign-in step: the code from the authenticator app. */
+    public function verifyMfa(string $code): array
+    {
+        $token = $this->session->get(self::MFA_KEY);
+        if (! $token) {
+            throw new MediflowException('Please sign in again.', 401);
+        }
+        $response = $this->send('post', config('mediflow.gateway_url').'/api/auth/mfa/verify',
+            ['mfa_token' => $token, 'code' => $code], null);
+        if (! $response->successful()) {
+            $e = MediflowException::fromResponse($response->status(), $response->json());
+            if (str_contains($e->getMessage(), 'took too long')) {
+                $this->session->forget(self::MFA_KEY);
+            }
+            throw $e;
+        }
+        $this->session->forget(self::MFA_KEY);
+
+        return $this->startSession($response->json());
+    }
+
+    private function startSession(array $data): array
+    {
         if (($data['role'] ?? null) !== 'admin') {
             $this->revoke($data['refresh'] ?? null);
             throw new MediflowException('The admin console is for administrators only.', 403);

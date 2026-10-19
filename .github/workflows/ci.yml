@@ -227,6 +227,9 @@ jobs:
           curl -fsS http://localhost:8080/api/health
           # Student dashboard: its own page and API routing
           curl -fsS http://localhost:8081/ | grep -q '<div id="root">'
+          # Both apps send a Content-Security-Policy that only allows their own scripts
+          curl -fsSI http://localhost:8080/ | grep -qi "content-security-policy: default-src 'self'; script-src 'self'"
+          curl -fsSI http://localhost:8081/ | grep -qi "content-security-policy: default-src 'self'; script-src 'self'"
           curl -fsS http://localhost:8081/api/health
           ACCESS=$(curl -fsS -H 'Content-Type: application/json' \
             -d '{"unique_id":"nurse","password":"nurse123"}' \
