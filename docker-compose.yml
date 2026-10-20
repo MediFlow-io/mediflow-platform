@@ -35,6 +35,8 @@ services:
       AI_SERVICE_TOKEN: *ai-token
       SEED_DEMO: ${SEED_DEMO:-true}
       MFA_REQUIRED_ROLES: ${MFA_REQUIRED_ROLES:-}
+      LOGIN_RATE_LIMIT: ${LOGIN_RATE_LIMIT:-10/min}
+      REFRESH_RATE_LIMIT: ${REFRESH_RATE_LIMIT:-60/min}
     # Migrate, optionally seed demo data (dev only), then serve.
     command: >
       sh -c "python manage.py migrate --noinput &&

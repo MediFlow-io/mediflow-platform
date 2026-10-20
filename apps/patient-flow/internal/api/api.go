@@ -329,6 +329,20 @@ func decodeFields(r *http.Request) (map[string]json.RawMessage, error) {
 }
 
 // intField parses an integer that may arrive as a number or a numeric string (as DRF accepts).
+// esiField reads an ESI level (1–5). The range is checked on the int64 before converting it.
+func esiField(raw json.RawMessage, problems store.ValidationError) (int, bool) {
+	v, valid := intField(raw)
+	switch {
+	case !valid:
+		problems["esi"] = []string{"A valid integer is required."}
+	case v < 1 || v > 5:
+		problems["esi"] = []string{"ESI must be from 1 to 5."}
+	default:
+		return int(v), true
+	}
+	return 0, false
+}
+
 func intField(raw json.RawMessage) (int64, bool) {
 	var n json.Number
 	if json.Unmarshal(raw, &n) == nil {

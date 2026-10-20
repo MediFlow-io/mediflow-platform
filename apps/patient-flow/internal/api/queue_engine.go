@@ -149,10 +149,8 @@ func (s *Server) changeTriage(w http.ResponseWriter, r *http.Request) {
 	esi := 0
 	if raw, present := fields["esi"]; !present {
 		problems["esi"] = []string{"This field is required."}
-	} else if v, valid := intField(raw); !valid {
-		problems["esi"] = []string{"A valid integer is required."}
-	} else {
-		esi = int(v)
+	} else if v, ok := esiField(raw, problems); ok {
+		esi = v
 	}
 	reason := strings.TrimSpace(stringField(fields, "reason", 300, problems))
 	if reason == "" && problems["reason"] == nil {

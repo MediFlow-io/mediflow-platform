@@ -6,6 +6,10 @@ INVALID = "Given token not valid for any token type"
 
 
 class AuthError(Exception):
+    """The token is missing, invalid or expired. Responses use fixed messages, never the exception text."""
+
+
+class MissingCredentials(AuthError):
     pass
 
 
@@ -25,7 +29,7 @@ class Verifier:
     def verify(self, header: str | None) -> int:
         """Returns the user id from an `Authorization: Bearer ...` header."""
         if not header or not header.startswith("Bearer "):
-            raise AuthError("Authentication credentials were not provided.")
+            raise MissingCredentials("Authentication credentials were not provided.")
         token = header.removeprefix("Bearer ").strip()
         try:
             keys = self._candidates(token)

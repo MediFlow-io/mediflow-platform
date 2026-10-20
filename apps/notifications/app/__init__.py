@@ -10,7 +10,7 @@ from flask import Flask, g, jsonify, request
 from psycopg_pool import ConnectionPool
 
 from . import channels, listener, scheduler, store
-from .auth import AuthError, Verifier
+from .auth import INVALID as INVALID_TOKEN, AuthError, MissingCredentials, Verifier
 from .config import Settings
 
 PAGE_SIZE, MAX_PAGE_SIZE = 30, 100
@@ -39,8 +39,10 @@ def create_app(settings: Settings | None = None, verifier: Verifier | None = Non
         def wrapper(*args, **kwargs):
             try:
                 user_id = verifier.verify(request.headers.get("Authorization"))
-            except AuthError as exc:
-                return error(401, str(exc))
+            except MissingCredentials:
+                return error(401, "Authentication credentials were not provided.")
+            except AuthError:
+                return error(401, INVALID_TOKEN)
             with pool.connection() as conn:
                 if not store.active_user(conn, user_id):
                     return error(401, "User is inactive or no longer exists.")

@@ -212,10 +212,14 @@ jobs:
     name: Production install (deploy/install.sh)
     needs: [core-api, ai-service, gateway, patient-flow, notifications, admin-console, node-apps]
     runs-on: ubuntu-latest
+    env:
+      # Install the checked-out commit (not main) into the workspace, as a server would.
+      DIR: ${{ github.workspace }}
+      SKIP_UPDATE: "1"
+      PUBLIC_HOST: localhost
     steps:
       - uses: actions/checkout@v4
       - name: Install exactly as on a server (production settings, generated secrets)
-        env: {DIR: "${{ github.workspace }}", SKIP_UPDATE: "1", PUBLIC_HOST: "localhost"}
         run: bash deploy/install.sh
       - name: Sign in with the generated admin password and use the API
         run: |
@@ -245,6 +249,8 @@ jobs:
       # Open all day so the same-day appointment test can run at any hour.
       CLINIC_HOURS: "00:00-23:59"
       CLINIC_DAYS: Sun-Sat
+      # The browser tests sign in many times a minute from one address; production keeps 10/min.
+      LOGIN_RATE_LIMIT: 600/min
     steps:
       - uses: actions/checkout@v4
       - name: Build and start every service

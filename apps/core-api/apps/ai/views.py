@@ -11,6 +11,7 @@ from . import client
 TRIAGE_ROLES = frozenset({User.Role.ADMIN, User.Role.DOCTOR, User.Role.NURSE})
 TRIAGE_FIELDS = ("chief_complaint", "age_years", "pain_score", "vitals")
 UNAVAILABLE = {"detail": "The AI assistant is unavailable right now. Please try again or ask a clinician."}
+REJECTED = {"detail": "Invalid input for the AI service."}
 
 
 class AIThrottle(UserRateThrottle):
@@ -27,8 +28,8 @@ class AskView(APIView):
             return Response({"detail": "question must be 1-500 characters."}, status=400)
         try:
             return Response(client.call("/ai/ask", {"question": question.strip()}))
-        except client.AIRejected as error:
-            return Response({"detail": str(error)}, status=400)
+        except client.AIRejected:
+            return Response(REJECTED, status=400)
         except client.AIUnavailable:
             return Response(UNAVAILABLE, status=503)
 
@@ -44,8 +45,8 @@ class TriageSuggestView(APIView):
         payload = {key: request.data[key] for key in TRIAGE_FIELDS if key in request.data}
         try:
             suggestion = client.call("/ai/triage", payload)
-        except client.AIRejected as error:
-            return Response({"detail": str(error)}, status=400)
+        except client.AIRejected:
+            return Response(REJECTED, status=400)
         except client.AIUnavailable:
             return Response(UNAVAILABLE, status=503)
         record(request.user, "ai.triage_suggested", "ai", "", suggested_esi=suggestion.get("suggested_esi"),
@@ -63,8 +64,8 @@ class RiskScoreView(APIView):
         payload = {key: request.data[key] for key in ("vitals", "on_oxygen", "new_confusion") if key in request.data}
         try:
             result = client.call("/ai/risk-score", payload)
-        except client.AIRejected as error:
-            return Response({"detail": str(error)}, status=400)
+        except client.AIRejected:
+            return Response(REJECTED, status=400)
         except client.AIUnavailable:
             return Response(UNAVAILABLE, status=503)
         record(request.user, "ai.risk_scored", "ai", "", score=result.get("score"), risk=result.get("risk"),
@@ -95,8 +96,8 @@ class InsightsView(APIView):
                 estimates = client.call("/ai/wait-time", {"queues": queues})["estimates"]
                 departments = [{"name": d["name"], "waitingNow": d["waiting_now"], "checkIns": d["check_ins"],
                                 "expectedWaitForNewArrival": e} for d, e in zip(numbers["departments"], estimates)]
-        except client.AIRejected as error:
-            return Response({"detail": str(error)}, status=400)
+        except client.AIRejected:
+            return Response(REJECTED, status=400)
         except client.AIUnavailable:
             return Response(UNAVAILABLE, status=503)
         record(request.user, "ai.insights_viewed", "ai", "", findings=len(found.get("findings", [])))

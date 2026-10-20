@@ -4,7 +4,9 @@ export const WEB = process.env.WEB_URL ?? "http://localhost:5173";
 export const STUDENT = process.env.STUDENT_URL ?? "http://localhost:5174";
 export const ADMIN = process.env.ADMIN_URL ?? "http://localhost:8082";
 
-export const unique = () => `${Date.now() % 1_000_000}${Math.floor(Math.random() * 90 + 10)}`;
+import { randomInt } from "node:crypto";
+
+export const unique = () => `${Date.now() % 1_000_000}${randomInt(10, 100)}`;
 
 export async function api(path, { token, method = "GET", body } = {}) {
   const res = await fetch(WEB + path, {
@@ -17,8 +19,16 @@ export async function api(path, { token, method = "GET", body } = {}) {
   return data;
 }
 
+// Access tokens last 10 minutes; reusing them for 5 keeps the suite under the login rate limit.
+const tokens = new Map();
 export async function token(username, password) {
-  return (await api("/api/auth/login", { method: "POST", body: { unique_id: username, password } })).access;
+  const key = `${username}
+${password}`;
+  const cached = tokens.get(key);
+  if (cached && Date.now() - cached.at < 5 * 60_000) return cached.access;
+  const { access } = await api("/api/auth/login", { method: "POST", body: { unique_id: username, password } });
+  tokens.set(key, { access, at: Date.now() });
+  return access;
 }
 
 export async function signInStaff(page, username, password) {

@@ -261,10 +261,8 @@ func (s *Server) appointmentAction(w http.ResponseWriter, r *http.Request) {
 		in := store.CheckIn{}
 		if raw, present := fields["esi"]; !present || string(raw) == "null" {
 			problems["esi"] = []string{"This field is required."}
-		} else if v, valid := intField(raw); !valid {
-			problems["esi"] = []string{"A valid integer is required."}
-		} else {
-			in.ESI = int(v)
+		} else if esi, ok := esiField(raw, problems); ok {
+			in.ESI = esi
 		}
 		in.Vitals, _ = parseVitals(fields, problems)
 		up.CheckIn = &in
