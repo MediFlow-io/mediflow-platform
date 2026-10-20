@@ -78,3 +78,8 @@ export const getMyAppointments = () => request("/api/appointments/mine");
 export const getDepartments = () => request("/api/departments");
 export const requestAppointment = (body) => request("/api/appointments", { method: "POST", body });
 export const cancelAppointment = (id) => request(`/api/appointments/${id}/cancel`, { method: "POST" });
+
+// Notifications come from the Flask notification service.
+export const getNotifications = () => request("/api/notifications?limit=50");
+export const markNotificationRead = (id) => request(`/api/notifications/${id}/read`, { method: "POST" });
+export const markAllNotificationsRead = () => request("/api/notifications/read-all", { method: "POST" });

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
-import { cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, isSignedIn, requestAppointment, signIn, signOut } from "./api";
+import {
+  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getNotifications, isSignedIn,
+  markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
+} from "./api";
 
 // Mediflow palette
 const C = {
@@ -27,7 +30,49 @@ const nav = [
   { id: "history", label: "Visit history", icon: ClipboardList },
   { id: "vaccines", label: "Vaccines", icon: Syringe },
   { id: "meds", label: "Medications", icon: Pill },
+  { id: "notifications", label: "Notifications", icon: Bell },
 ];
+// Where a notification's `link` takes you.
+const LINK_TAB = { home: "home", appointments: "appts" };
+
+function ago(d) {
+  const minutes = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)} h ago`;
+  return fmt(d);
+}
+
+function NotificationItem({ n, onOpen, compact }) {
+  return (
+    <button onClick={() => onOpen(n)} className={`w-full text-left rounded-2xl ${compact ? "p-3" : "p-4"} flex gap-3`}
+      style={{ background: n.readAt ? "#fff" : C.mist, border: `1px solid ${n.readAt ? C.line : "transparent"}` }}>
+      <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: n.readAt ? "transparent" : C.cobalt }} aria-hidden="true" />
+      <span className="grid gap-0.5">
+        <span className="text-sm font-semibold" style={{ color: C.ink }}>{n.title}</span>
+        <span className="text-sm">{n.body}</span>
+        <span className="text-xs" style={{ color: "#5B6F8F" }}>{ago(n.createdAt)}{n.readAt ? "" : " · new"}</span>
+      </span>
+    </button>
+  );
+}
+
+function Notifications({ data, failed, onOpen, onReadAll }) {
+  return (
+    <Card title="Notifications" right={data?.unread > 0 && (
+      <button onClick={onReadAll} className="text-sm font-medium" style={{ color: C.cobalt }}>Mark all read</button>
+    )}>
+      {failed && <Note>Notifications can't be loaded right now. Your queue position and appointments are still up to date.</Note>}
+      {!failed && !data && <p className="text-sm" role="status">Loading…</p>}
+      {data && data.results.length === 0 && <p className="text-sm">No notifications yet. We'll tell you here when you're called or an appointment changes.</p>}
+      {data && data.results.length > 0 && (
+        <ul className="grid gap-2" aria-label="Notifications">
+          {data.results.map((n) => <li key={n.id}><NotificationItem n={n} onOpen={onOpen} /></li>)}
+        </ul>
+      )}
+    </Card>
+  );
+}
 
 function Logo({ light }) {
   return (
@@ -367,6 +412,14 @@ function Dashboard({ onSignedOut }) {
   const [appts, setAppts] = useState(null);
   const [error, setError] = useState(null);
   const [showNotices, setShowNotices] = useState(false);
+  const [notes, setNotes] = useState(null);
+  const [notesFailed, setNotesFailed] = useState(false);
+
+  // Separate from the record: if the notification service is down, the rest of the page still works.
+  const loadNotes = useCallback(
+    () => getNotifications().then((data) => { setNotes(data); setNotesFailed(false); }, () => setNotesFailed(true)),
+    [],
+  );
 
   // State is only set in promise callbacks, after the request settles.
   const load = useCallback(
@@ -384,26 +437,32 @@ function Dashboard({ onSignedOut }) {
   );
 
   useEffect(() => {
-    const first = setTimeout(load, 0);
-    const timer = setInterval(load, REFRESH_MS);
+    const refresh = () => { load(); loadNotes(); };
+    const first = setTimeout(refresh, 0);
+    const timer = setInterval(refresh, REFRESH_MS);
     return () => {
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [load]);
+  }, [load, loadNotes]);
 
   async function logout() {
     await signOut();
     onSignedOut();
   }
 
-  const notices = [];
-  if (health && !health.linked) notices.push(`Your account isn't linked to a health record yet. Ask reception to link matric number ${me?.unique_id}.`);
-  if (health?.activeVisit?.status === "called") notices.push(`You've been called. Please go to ${health.activeVisit.department}.`);
-  for (const a of appts?.appointments ?? []) {
-    const upcoming = new Date(a.scheduled_for) > new Date();
-    if (a.status === "confirmed" && upcoming) notices.push(`Your ${a.department_name} appointment on ${fmt(a.scheduled_for)} at ${a.time} is confirmed.`);
-    if (a.status === "declined" && upcoming) notices.push(`Your request for ${fmt(a.scheduled_for)} was declined${a.staff_note ? `: ${a.staff_note}` : "."}`);
+  const unread = notes?.unread ?? 0;
+
+  async function openNote(n) {
+    setShowNotices(false);
+    if (!n.readAt) await markNotificationRead(n.id).catch(() => {});
+    if (LINK_TAB[n.link]) setTab(LINK_TAB[n.link]);
+    loadNotes();
+  }
+
+  async function readAll() {
+    await markAllNotificationsRead().catch(() => {});
+    loadNotes();
   }
 
   return (
@@ -439,16 +498,21 @@ function Dashboard({ onSignedOut }) {
             </p>
           </div>
           <div className="relative">
-            <button aria-label={`Notifications (${notices.length})`} onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
+            <button aria-label={`Notifications (${unread} unread)`} aria-expanded={showNotices} onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
               <Bell size={18} color={C.ink} />
-              {notices.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{notices.length}</span>
+              {unread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{unread > 9 ? "9+" : unread}</span>
               )}
             </button>
             {showNotices && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl p-3 grid gap-2 z-10 shadow-lg" style={{ border: `1px solid ${C.line}` }}>
-                {notices.length ? notices.map((n) => <div key={n} className="text-sm rounded-xl p-3" style={{ background: C.mist }}>{n}</div>)
-                  : <div className="text-sm p-3">No new notices.</div>}
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2.5rem)] bg-white rounded-2xl p-3 grid gap-2 z-10 shadow-lg" style={{ border: `1px solid ${C.line}` }}>
+                {notesFailed && <div className="text-sm p-3">Notifications can't be loaded right now.</div>}
+                {!notesFailed && (notes?.results.length
+                  ? notes.results.slice(0, 5).map((n) => <NotificationItem key={n.id} n={n} onOpen={openNote} compact />)
+                  : <div className="text-sm p-3">No notifications yet.</div>)}
+                <button onClick={() => { setShowNotices(false); setTab("notifications"); }} className="text-sm font-medium p-2" style={{ color: C.cobalt }}>
+                  See all notifications
+                </button>
               </div>
             )}
           </div>
@@ -470,6 +534,7 @@ function Dashboard({ onSignedOut }) {
         {health && tab === "history" && <History visits={health.visits} />}
         {tab === "appts" && <Appointments data={appts} reload={load} />}
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
+        {tab === "notifications" && <Notifications data={notes} failed={notesFailed} onOpen={openNote} onReadAll={readAll} />}
         {tab === "meds" && <NotAvailable title="Medications on file">Prescriptions aren't kept in MediFlow yet. Check with the pharmacy or the clinician who treated you.</NotAvailable>}
       </div>
     </div>
