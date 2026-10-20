@@ -1,0 +1,38 @@
+{
+  "services": {
+    "frontend": {
+      "root": "frontend/",
+      "framework": "react"
+    },
+    "api-go": {
+      "root": "api-go/",
+      "framework": "go"
+    },
+    "api-python": {
+      "root": "api-python/",
+      "framework": "fastapi"
+    },
+    "api-php": {
+      "root": "api-php/",
+      "runtime": "container"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/go/(.*)",
+      "destination": { "service": "api-go" }
+    },
+    {
+      "source": "/api/python/(.*)",
+      "destination": { "service": "api-python" }
+    },
+    {
+      "source": "/api/php/(.*)",
+      "destination": { "service": "api-php" }
+    },
+    {
+      "source": "/(.*)",
+      "destination": { "service": "frontend" }
+    }
+  ]
+}

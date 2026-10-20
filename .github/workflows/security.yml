@@ -28,20 +28,22 @@ jobs:
           - {language: go, build-mode: manual}
     steps:
       - uses: actions/checkout@v4
+      # Go must be installed before CodeQL starts, so CodeQL traces this Go's compiler during the build.
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/patient-flow/go.mod
+          cache: false
       - uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
           queries: security-extended
       - if: matrix.language == 'go'
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: apps/patient-flow/go.mod
-      - if: matrix.language == 'go'
         name: Build the Go services
         run: |
-          (cd apps/gateway && go build ./...)
-          (cd apps/patient-flow && go build ./...)
+          (cd apps/gateway && go build -a ./...)
+          (cd apps/patient-flow && go build -a ./...)
       - uses: github/codeql-action/analyze@v3
         with:
           category: /language:${{ matrix.language }}
@@ -77,6 +79,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: apps/${{ matrix.app }}/go.mod
+          cache-dependency-path: apps/${{ matrix.app }}/go.sum
       - if: matrix.kind == 'go'
         name: govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
