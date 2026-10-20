@@ -194,6 +194,55 @@ paths:
                         details: {type: object}
         "400": {$ref: "#/components/responses/Error"}
         "403": {$ref: "#/components/responses/Error"}
+  /api/appointments:
+    get:
+      summary: All appointments (admin, doctor, nurse, reception). Served by Go.
+      parameters:
+        - {name: status, in: query, schema: {type: string}, example: "requested,confirmed"}
+        - {name: date, in: query, schema: {type: string, format: date}, description: Hospital-local day}
+        - {name: department, in: query, schema: {type: string}}
+        - {name: patient, in: query, schema: {type: integer}}
+      responses: {"200": {description: Appointments, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Appointment"}}}}}}
+    post:
+      summary: Request (a patient, for their own linked record) or book (staff, for any patient; confirmed at once)
+      description: |
+        Slots must be in clinic hours (CLINIC_HOURS / CLINIC_DAYS, default Mon-Fri 08:00-16:00), on a 15-minute
+        boundary, at least 15 minutes ahead and at most 60 days ahead. A patient may hold at most 3 open
+        (requested or confirmed) appointments.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [department, date, time]
+              properties:
+                patient: {type: integer, description: Staff only. Ignored for patients (their own record is used)}
+                department: {type: integer}
+                date: {type: string, format: date, description: Hospital-local}
+                time: {type: string, example: "09:30"}
+                reason: {type: string, maxLength: 300}
+      responses: {"201": {description: Created}, "400": {$ref: "#/components/responses/Error"}}
+  /api/appointments/mine:
+    get:
+      summary: The caller's own appointments, newest first, plus the clinic's bookable hours
+      responses:
+        "200":
+          description: "{linked, schedule, appointments}"
+  /api/appointments/{id}/{action}:
+    parameters:
+      - {name: id, in: path, required: true, schema: {type: integer}}
+      - {name: action, in: path, required: true, schema: {type: string, enum: [confirm, decline, cancel, check_in]}}
+    post:
+      summary: Move an appointment through its lifecycle
+      description: |
+        | action | from | who | body |
+        |---|---|---|---|
+        | confirm | requested | staff | optional `date`+`time` (reschedule), `note` |
+        | decline | requested | staff | `note` (required, shown to the patient) |
+        | cancel | requested, confirmed | staff, or the patient for their own | optional `note` |
+        | check_in | confirmed | staff, on the appointment's day | `esi`, optional `chief_complaint`, `pain_score`, `vitals` |
+        Check-in creates the visit in the same transaction. Another patient's appointment returns 404.
+      responses: {"200": {description: Updated}, "400": {$ref: "#/components/responses/Error"}, "403": {$ref: "#/components/responses/Error"}, "404": {$ref: "#/components/responses/Error"}, "409": {description: Not allowed from the current status}}
   /api/me/health:
     get:
       summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.
@@ -255,6 +304,24 @@ components:
       description: Error
       content: {application/json: {schema: {type: object, properties: {detail: {type: string}}}}}
   schemas:
+    Appointment:
+      type: object
+      properties:
+        id: {type: integer}
+        reference: {type: string, example: A-1A2B3C4D}
+        patient: {type: integer}
+        patient_name: {type: string}
+        department: {type: integer}
+        department_name: {type: string}
+        scheduled_for: {type: string, format: date-time}
+        date: {type: string, format: date}
+        time: {type: string, example: "09:30"}
+        reason: {type: string}
+        status: {type: string, enum: [requested, confirmed, declined, cancelled, checked_in]}
+        staff_note: {type: string}
+        requested_by: {type: string, nullable: true, description: Hidden from patients}
+        handled_by: {type: string, nullable: true, description: Hidden from patients}
+        visit: {type: integer, nullable: true}
     FlowStats:
       type: object
       properties:

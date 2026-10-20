@@ -63,3 +63,29 @@ class Visit(models.Model):
     def clean(self):
         from django.core.exceptions import ValidationError
         if not 1 <= self.esi <= 5: raise ValidationError({"esi": "ESI must be from 1 (most urgent) to 5."})
+
+class Appointment(models.Model):
+    """A booked or requested clinic slot. Written by the Go patient-flow service (ADR-0002); schema owned here.
+
+    requested ──confirm──▶ confirmed ──check-in──▶ checked_in (a Visit is created)
+        │──decline──▶ declined        │
+        └────────────cancel───────────┴──▶ cancelled
+    """
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "Requested"; CONFIRMED = "confirmed", "Confirmed"; DECLINED = "declined", "Declined"
+        CANCELLED = "cancelled", "Cancelled"; CHECKED_IN = "checked_in", "Checked in"
+    reference = models.CharField(max_length=12, unique=True)
+    patient = models.ForeignKey(Patient, related_name="appointments", on_delete=models.PROTECT)
+    department = models.ForeignKey(Department, related_name="appointments", on_delete=models.PROTECT)
+    scheduled_for = models.DateTimeField()
+    reason = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.REQUESTED)
+    staff_note = models.TextField(blank=True, default="")  # shown to the patient, e.g. why a request was declined
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointments_requested")
+    handled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointments_handled")
+    visit = models.OneToOneField(Visit, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointment")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        ordering = ("scheduled_for",)
+        indexes = [models.Index(fields=["status", "scheduled_for"])]
