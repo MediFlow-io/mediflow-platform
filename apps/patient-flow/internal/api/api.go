@@ -32,6 +32,10 @@ type Store interface {
 	Transition(ctx context.Context, actor store.User, id int64, action string) (store.Visit, error)
 	DashboardData(ctx context.Context, since, until time.Time) (today, active []store.DashboardRow, err error)
 	ReportRows(ctx context.Context, since, until time.Time) ([]store.ReportRow, error)
+	PatientIDForUser(ctx context.Context, userID int64) (int64, error)
+	ListAppointments(ctx context.Context, f store.AppointmentFilter) ([]store.Appointment, error)
+	CreateAppointment(ctx context.Context, actor store.User, in store.NewAppointment) (store.Appointment, error)
+	AppointmentAction(ctx context.Context, actor store.User, id int64, action string, up store.AppointmentUpdate) (store.Appointment, error)
 }
 
 type TokenVerifier interface {
@@ -46,21 +50,30 @@ type Server struct {
 	Log       *slog.Logger
 	Now       func() time.Time
 	Heartbeat time.Duration // keep-alive interval for the event stream
+	Schedule  flow.Schedule // bookable clinic hours for appointments
 }
 
 func (s *Server) Routes() http.Handler {
+	m := newMetrics(s)
 	mux := http.NewServeMux()
+	handle := func(pattern string, h http.Handler) { mux.Handle(pattern, m.instrument(pattern, h)) }
 	mux.HandleFunc("GET /healthz", s.health)
-	mux.Handle("GET /api/visits", s.authed(flow.CanReadVisits, s.listVisits))
-	mux.Handle("POST /api/visits", s.authed(flow.CanCheckIn, s.checkIn))
-	mux.Handle("GET /api/visits/{id}", s.authed(flow.CanReadVisits, s.getVisit))
-	mux.Handle("PATCH /api/visits/{id}", s.authed(flow.CanEditVisit, s.updateVisit))
+	mux.Handle("GET /metrics", m.handler())
+	handle("GET /api/visits", s.authed(flow.CanReadVisits, s.listVisits))
+	handle("POST /api/visits", s.authed(flow.CanCheckIn, s.checkIn))
+	handle("GET /api/visits/{id}", s.authed(flow.CanReadVisits, s.getVisit))
+	handle("PATCH /api/visits/{id}", s.authed(flow.CanEditVisit, s.updateVisit))
 	// Per-action role rules live in flow.Check; any check-in role may reach the route.
-	mux.Handle("POST /api/visits/{id}/{action}", s.authed(flow.CanCheckIn, s.transition))
-	mux.Handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
-	mux.Handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
-	mux.Handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
-	mux.Handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
+	handle("POST /api/visits/{id}/{action}", s.authed(flow.CanCheckIn, s.transition))
+	handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
+	handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
+	handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
+	handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
+	handle("GET /api/appointments", s.authed(flow.CanManageAppointments, s.listAppointments))
+	// Patients use these for their own record; staff for anyone. Ownership is checked in the store.
+	handle("GET /api/appointments/mine", s.authed(anyone, s.myAppointments))
+	handle("POST /api/appointments", s.authed(anyone, s.createAppointment))
+	handle("POST /api/appointments/{id}/{action}", s.authed(anyone, s.appointmentAction))
 	return s.recoverer(s.logRequests(mux))
 }
 

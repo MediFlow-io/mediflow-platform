@@ -48,6 +48,12 @@ type fakeStore struct {
 	gotPatch    store.VisitPatch
 	transitions []string
 	reportRows  []store.ReportRow
+	appts       []store.Appointment
+	links       map[int64]int64 // user id -> patient id
+	gotAppt     store.NewAppointment
+	gotAction   string
+	gotUpdate   store.AppointmentUpdate
+	apptErr     error
 	reportSince time.Time
 	reportUntil time.Time
 }
@@ -129,7 +135,8 @@ func newFixture() (*fakeStore, *Server) {
 		},
 	}
 	return f, &Server{Store: f, Tokens: fakeTokens{}, Hub: events.NewHub(), Loc: lagos,
-		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }, Heartbeat: time.Hour}
+		Log: slog.New(slog.NewTextHandler(io.Discard, nil)), Now: func() time.Time { return now }, Heartbeat: time.Hour,
+		Schedule: flow.DefaultSchedule(lagos)}
 }
 
 func call(t *testing.T, h http.Handler, method, path, token, body string) (*httptest.ResponseRecorder, map[string]any) {

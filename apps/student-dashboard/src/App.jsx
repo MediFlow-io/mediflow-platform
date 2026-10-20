@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info } from "lucide-react";
-import { getMe, getMyHealth, isSignedIn, signIn, signOut } from "./api";
+import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
+import { cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, isSignedIn, requestAppointment, signIn, signOut } from "./api";
 
 // Mediflow palette
 const C = {
@@ -210,6 +210,108 @@ function History({ visits }) {
   );
 }
 
+const APPT_STYLE = {
+  requested: ["Waiting for the clinic", { background: "#FFF1D6", color: "#8A5B00" }],
+  confirmed: ["Confirmed", { background: "#DDF6EF", color: "#137A62" }],
+  declined: ["Declined", { background: "#FFE9E9", color: "#B23A3A" }],
+  cancelled: ["Cancelled", { background: C.mist, color: "#5B6F8F" }],
+  checked_in: ["Checked in", { background: "#E3EAFF", color: C.cobalt }],
+};
+
+function Appointments({ data, reload }) {
+  const [open, setOpen] = useState(false);
+  const [depts, setDepts] = useState([]);
+  const [f, setF] = useState({ department: "", date: "", time: "", reason: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const inp = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
+  const border = { border: `1px solid ${C.line}` };
+
+  useEffect(() => {
+    if (open && depts.length === 0) getDepartments().then((d) => setDepts(d.filter((x) => x.active)), () => {});
+  }, [open, depts.length]);
+
+  if (!data) return <Card title="Appointments"><p className="text-sm">Loading…</p></Card>;
+  if (!data.linked) {
+    return <Card title="Appointments"><Note>Booking needs your account linked to your health record. Ask reception to link your matric number, then come back here.</Note></Card>;
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await requestAppointment({ ...f, department: Number(f.department) });
+      setF({ department: "", date: "", time: "", reason: "" });
+      setOpen(false);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancel(a) {
+    if (!window.confirm(`Cancel your ${a.department_name} appointment on ${fmt(a.scheduled_for)} at ${a.time}?`)) return;
+    try {
+      await cancelAppointment(a.id);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <Card
+      title="Appointments"
+      right={
+        <button onClick={() => setOpen(!open)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ background: C.cobalt }}>
+          {open ? <X size={16} /> : <Plus size={16} />} {open ? "Close" : "Request a slot"}
+        </button>
+      }
+    >
+      <p className="text-sm mb-4" style={{ color: "#5B6F8F" }}>The clinic takes appointments {data.schedule}. The clinic confirms each request.</p>
+      {error && <div role="alert" className="rounded-xl p-3 mb-4 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>}
+      {open && (
+        <form onSubmit={submit} className="grid gap-3 md:grid-cols-4 p-4 rounded-2xl mb-5" style={{ background: C.mist }}>
+          <label className="text-sm md:col-span-2">Department
+            <select className={inp} style={border} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} required>
+              <option value="">Choose…</option>
+              {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">Date<input type="date" className={inp} style={border} value={f.date} min={new Date().toLocaleDateString("en-CA")} onChange={(e) => setF({ ...f, date: e.target.value })} required /></label>
+          <label className="text-sm">Time<input type="time" step="900" className={inp} style={border} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} required /></label>
+          <label className="text-sm md:col-span-4">Reason<input className={inp} style={border} maxLength={300} placeholder="e.g. Persistent cough" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></label>
+          <button disabled={busy} className="md:col-span-4 rounded-full py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ background: C.ink }}>{busy ? "Sending…" : "Send request"}</button>
+        </form>
+      )}
+      {data.appointments.length === 0 && <p className="text-sm">No appointments yet. Select Request a slot to ask for one.</p>}
+      <ul>
+        {data.appointments.map((a) => {
+          const [label, style] = APPT_STYLE[a.status] ?? [a.status, {}];
+          return (
+            <li key={a.id} className="py-3 flex items-center justify-between gap-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div>
+                <div className="font-semibold" style={{ color: C.ink }}>{a.reason || a.department_name}</div>
+                <div className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(a.scheduled_for)}, {a.time} · {a.department_name} · {a.reference}</div>
+                {a.staff_note && <div className="text-sm mt-1" style={{ color: C.ink }}>Clinic: {a.staff_note}</div>}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold rounded-full px-3 py-1 whitespace-nowrap" style={style}>{label}</span>
+                {(a.status === "requested" || a.status === "confirmed") && (
+                  <button aria-label={`Cancel appointment ${a.reference}`} onClick={() => cancel(a)}><X size={16} color="#8A9BB8" /></button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
 function NotAvailable({ title, children }) {
   return <Card title={title}><Note>{children}</Note></Card>;
 }
@@ -262,16 +364,18 @@ function Dashboard({ onSignedOut }) {
   const [tab, setTab] = useState("home");
   const [me, setMe] = useState(null);
   const [health, setHealth] = useState(null);
+  const [appts, setAppts] = useState(null);
   const [error, setError] = useState(null);
   const [showNotices, setShowNotices] = useState(false);
 
   // State is only set in promise callbacks, after the request settles.
   const load = useCallback(
     () =>
-      Promise.all([getMe(), getMyHealth()]).then(
-        ([profile, record]) => {
+      Promise.all([getMe(), getMyHealth(), getMyAppointments()]).then(
+        ([profile, record, appointments]) => {
           setMe(profile);
           setHealth(record);
+          setAppts(appointments);
           setError(null);
         },
         (err) => (err.status === 401 ? onSignedOut() : setError(err.message)),
@@ -296,6 +400,11 @@ function Dashboard({ onSignedOut }) {
   const notices = [];
   if (health && !health.linked) notices.push(`Your account isn't linked to a health record yet. Ask reception to link matric number ${me?.unique_id}.`);
   if (health?.activeVisit?.status === "called") notices.push(`You've been called. Please go to ${health.activeVisit.department}.`);
+  for (const a of appts?.appointments ?? []) {
+    const upcoming = new Date(a.scheduled_for) > new Date();
+    if (a.status === "confirmed" && upcoming) notices.push(`Your ${a.department_name} appointment on ${fmt(a.scheduled_for)} at ${a.time} is confirmed.`);
+    if (a.status === "declined" && upcoming) notices.push(`Your request for ${fmt(a.scheduled_for)} was declined${a.staff_note ? `: ${a.staff_note}` : "."}`);
+  }
 
   return (
     <div className="min-h-screen md:flex" style={{ background: C.mist, color: "#2A3B57", fontFamily: "'Avenir Next', 'Segoe UI', system-ui, sans-serif" }}>
@@ -359,11 +468,7 @@ function Dashboard({ onSignedOut }) {
 
         {health && tab === "home" && <Home health={health} go={setTab} />}
         {health && tab === "history" && <History visits={health.visits} />}
-        {tab === "appts" && (
-          <NotAvailable title="Appointments">
-            Online booking isn't available yet. Walk in to the health centre and reception will check you in. Your place in the queue then shows on the Today page.
-          </NotAvailable>
-        )}
+        {tab === "appts" && <Appointments data={appts} reload={load} />}
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
         {tab === "meds" && <NotAvailable title="Medications on file">Prescriptions aren't kept in MediFlow yet. Check with the pharmacy or the clinician who treated you.</NotAvailable>}
       </div>

@@ -23,7 +23,7 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 |---|---|---|---|
 | Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, staff, departments, student record, AI proxy, health check |
 | **Admin console** | **Laravel 12** (PHP, Blade) | `apps/admin-console/` | ✅ Audit-log viewer, flow reports + CSV, department settings. Admins only, no own database |
-| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits**: check-in, call/start/complete/cancel, queue, live events (SSE), flow dashboard |
+| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits and appointments**: check-in with vitals, call/start/complete/cancel, queue, live events (SSE), flow dashboard and reports, appointment requests/bookings/same-day check-in |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
 | Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Staff app: dashboard, queue with call/start/complete/cancel, patients (search, register, edit, link student), check-in with AI triage suggestion, staff management, account |
@@ -445,6 +445,19 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 | Browser CORS error (local dev) | Add your origin to `ALLOWED_ORIGIN` (gateway) or `CORS_ALLOWED_ORIGINS` (Django) |
 
 ---
+
+### 4.8 Monitoring
+
+Every backend service exposes Prometheus metrics at `/metrics`. Only `/api/*` is routed by the public
+Nginx, so these endpoints are reachable from the internal network only (CI checks this).
+
+| Service | Endpoint | Highlights |
+|---|---|---|
+| Django core API | `:8000/metrics` | requests and responses by view, status and latency (`django-prometheus`) |
+| Go patient-flow | `:8090/metrics` | `patient_flow_http_requests_total` / `_duration_seconds` by route pattern, `patient_flow_check_ins_total`, `patient_flow_visit_transitions_total{action}`, `patient_flow_event_stream_clients` |
+| AI service | `:8001/metrics` | `mediflow_ai_requests_total`, latency, triage suggestions by ESI |
+
+Labels use route patterns, never raw URLs, so record IDs don't leak into metrics.
 
 ## 5. What's left
 

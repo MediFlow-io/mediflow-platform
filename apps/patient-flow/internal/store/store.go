@@ -99,10 +99,11 @@ type VisitPatch struct {
 
 // Event is published on NotifyChannel and streamed to live clients.
 type Event struct {
-	VisitID    int64  `json:"visitId"`
-	Action     string `json:"action"`
-	Status     string `json:"status"`
-	Department string `json:"department"`
+	VisitID       int64  `json:"visitId,omitempty"`
+	AppointmentID int64  `json:"appointmentId,omitempty"`
+	Action        string `json:"action"`
+	Status        string `json:"status"`
+	Department    string `json:"department"`
 }
 
 type Store struct{ pool *pgxpool.Pool }
@@ -206,14 +207,27 @@ func invalidPK(field string, id int64) ValidationError {
 // CheckIn creates a waiting visit. The patient row is locked so two simultaneous check-ins for the
 // same patient can't both pass the "one active visit" rule.
 func (s *Store) CheckIn(ctx context.Context, actor User, in CheckIn) (Visit, error) {
+	var id int64
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) (err error) {
+		id, err = checkInTx(ctx, tx, actor, in)
+		return err
+	})
+	if err != nil {
+		return Visit{}, err
+	}
+	return s.GetVisit(ctx, id)
+}
+
+// checkInTx creates a waiting visit inside the caller's transaction (also used by appointment check-in).
+func checkInTx(ctx context.Context, tx pgx.Tx, actor User, in CheckIn) (int64, error) {
 	if !flow.ValidESI(in.ESI) {
-		return Visit{}, ValidationError{"esi": {"ESI must be from 1 to 5."}}
+		return 0, ValidationError{"esi": {"ESI must be from 1 to 5."}}
 	}
 	if in.ArrivalMode == "" {
 		in.ArrivalMode = "walk_in"
 	}
 	var id int64
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	err := func() error {
 		if err := tx.QueryRow(ctx, `SELECT id FROM patients_patient WHERE id = $1 FOR UPDATE`, in.PatientID).Scan(new(int64)); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return invalidPK("patient", in.PatientID)
@@ -253,11 +267,8 @@ func (s *Store) CheckIn(ctx context.Context, actor User, in CheckIn) (Visit, err
 			return err
 		}
 		return notify(ctx, tx, Event{VisitID: id, Action: "checked_in", Status: string(flow.Waiting), Department: code})
-	})
-	if err != nil {
-		return Visit{}, err
-	}
-	return s.GetVisit(ctx, id)
+	}()
+	return id, err
 }
 
 // UpdateVisit changes editable fields (not status: that goes through Transition).
@@ -471,12 +482,16 @@ func statuses(list []flow.Status) []string {
 
 // audit appends to the shared, append-only audit log in the caller's transaction.
 func audit(ctx context.Context, tx pgx.Tx, actor User, action string, entityID int64, details map[string]any) error {
+	return auditAs(ctx, tx, actor, action, "visit", entityID, details)
+}
+
+func auditAs(ctx context.Context, tx pgx.Tx, actor User, action, entityType string, entityID int64, details map[string]any) error {
 	payload, err := json.Marshal(details)
 	if err != nil {
 		return err
 	}
 	_, err = tx.Exec(ctx, `INSERT INTO operations_auditlog (actor_id, action, entity_type, entity_id, details, created_at)
-		VALUES ($1, $2, 'visit', $3, $4, now())`, actor.ID, action, strconv.FormatInt(entityID, 10), string(payload))
+		VALUES ($1, $2, $3, $4, $5, now())`, actor.ID, action, entityType, strconv.FormatInt(entityID, 10), string(payload))
 	return err
 }
 

@@ -5,12 +5,14 @@ import ChangePasswordForm from "../ChangePasswordForm";
 import { PageHeader } from "../ui";
 import DashboardPage from "./DashboardPage";
 import PatientsPage from "./PatientsPage";
+import AppointmentsPage from "./AppointmentsPage";
 import QueuePage from "./QueuePage";
 import StaffPage from "./StaffPage";
 
 const PAGES = [
   { id: "dashboard", label: "Dashboard", permission: "dashboard", Component: DashboardPage },
   { id: "queue", label: "Queue", permission: "readPatients", Component: QueuePage },
+  { id: "appointments", label: "Appointments", permission: "manageAppointments", Component: AppointmentsPage },
   { id: "patients", label: "Patients", permission: "readPatients", Component: PatientsPage },
   { id: "staff", label: "Staff", permission: "manageStaff", Component: StaffPage },
   { id: "account", label: "My account", permission: null, Component: AccountPage },

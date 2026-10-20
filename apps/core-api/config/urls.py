@@ -43,6 +43,8 @@ urlpatterns = [
     path("api/auth/jwks", JwksView.as_view()), path(".well-known/jwks.json", JwksView.as_view()),
     path("api/auth/change-password", ChangePasswordView.as_view()), path("api/auth/change-password/", ChangePasswordView.as_view()),
     path("api/health", HealthView.as_view()),
+    # Prometheus metrics at /metrics. Not routed by the public Nginx (only /api/* is), so internal only.
+    path("", include("django_prometheus.urls")),
     path("api/audit-logs", AuditLogListView.as_view()), path("api/audit-logs/", AuditLogListView.as_view()),
     path("api/ai/ask", AskView.as_view()), path("api/ai/ask/", AskView.as_view()),
     path("api/ai/triage", TriageSuggestView.as_view()), path("api/ai/triage/", TriageSuggestView.as_view()),
