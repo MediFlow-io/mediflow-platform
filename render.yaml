@@ -23,9 +23,7 @@ services:
     region: frankfurt
     dockerContext: ./apps/core-api
     dockerfilePath: ./apps/core-api/Dockerfile
-    dockerCommand: >-
-      sh -c "python manage.py migrate --noinput && python manage.py seed_demo &&
-      exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 90 --access-logfile -"
+    dockerCommand: /app/start.sh   # migrations, demo data, then gunicorn on $PORT
     healthCheckPath: /api/health
     envVars:
       - key: PORT
@@ -48,6 +46,8 @@ services:
         value: https://mediflow-io-ai.onrender.com
       - key: AI_SERVICE_TIMEOUT     # the AI service may be waking up
         value: "60"
+      - key: SEED_DEMO              # demo departments and accounts (created once)
+        value: "true"
       - key: DEMO_PASSWORD          # password of the demo accounts (admin, manager, doctor, nurse)
         generateValue: true
       - fromGroup: mediflow-shared
