@@ -62,7 +62,12 @@ func main() {
 		log.Fatalf("invalid DJANGO_BASE_URL %q: %v", djangoBaseURL, err)
 	}
 
-	client := &http.Client{Timeout: 10 * time.Second}
+	// UPSTREAM_TIMEOUT: how long to wait for Django. Raise it where Django can be asleep (free hosting).
+	timeout, err := time.ParseDuration(mustGetenv("UPSTREAM_TIMEOUT", "10s"))
+	if err != nil {
+		log.Fatalf("invalid UPSTREAM_TIMEOUT: %v", err)
+	}
+	client := &http.Client{Timeout: timeout}
 	jwt := newVerifier(
 		djangoBaseURL+"/api/auth/jwks",
 		mustGetenv("JWT_ISSUER", "mediflow-core"),
