@@ -208,6 +208,35 @@ jobs:
         run: python scripts/team_status.py --check-config
       - run: pytest -q scripts/tests
 
+  production:
+    name: Production install (deploy/install.sh)
+    needs: [core-api, ai-service, gateway, patient-flow, notifications, admin-console, node-apps]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install exactly as on a server (production settings, generated secrets)
+        env: {DIR: "${{ github.workspace }}", SKIP_UPDATE: "1", PUBLIC_HOST: "localhost"}
+        run: bash deploy/install.sh
+      - name: Sign in with the generated admin password and use the API
+        run: |
+          set -e
+          PW=$(awk '$1=="admin" {print $2}' deploy/.credentials)
+          ACCESS=$(curl -fsS -H 'Content-Type: application/json' -d "{\"unique_id\":\"admin\",\"password\":\"$PW\"}"             http://localhost:8080/api/auth/login | python3 -c 'import sys,json; print(json.load(sys.stdin)["access"])')
+          curl -fsS -H "Authorization: Bearer $ACCESS" http://localhost:8080/api/queue
+          curl -fsS -H "Authorization: Bearer $ACCESS" http://localhost:8080/api/notifications/unread-count
+          curl -fsS -H "Authorization: Bearer $ACCESS" http://localhost:8080/api/clinic/settings | grep -q queue
+          # Demo passwords were replaced
+          if curl -fsS -H 'Content-Type: application/json' -d '{"unique_id":"admin","password":"admin123"}' http://localhost:8080/api/auth/login; then
+            echo "demo password still works"; exit 1
+          fi
+          curl -fsS http://localhost:8082/login | grep -q 'Admin console'
+          # Running again (an update) keeps the secrets and the data
+          bash deploy/install.sh
+          curl -fsS -H 'Content-Type: application/json' -d "{\"unique_id\":\"admin\",\"password\":\"$PW\"}" http://localhost:8080/api/auth/login >/dev/null
+      - name: Logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.yml -f deploy/docker-compose.prod.yml --env-file deploy/.env logs --tail=80
+
   stack:
     name: Docker stack + browser tests
     needs: [core-api, ai-service, gateway, patient-flow, notifications, admin-console, node-apps]
