@@ -5,6 +5,8 @@ COPY *.go ./
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/gateway .
 
 FROM alpine:3.20
+# CA certificates: needed for https calls (JWKS, Django) and TLS to managed databases like Neon.
+RUN apk add --no-cache ca-certificates tzdata
 RUN adduser -D -H gateway
 COPY --from=build /out/gateway /usr/local/bin/gateway
 USER gateway

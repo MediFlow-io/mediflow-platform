@@ -10,6 +10,7 @@ JWT_KEYS_DIR. In DEBUG only, a missing key pair is generated into JWT_KEYS_DIR s
 import base64
 import hashlib
 import os
+import re
 from pathlib import Path
 
 from cryptography.hazmat.primitives import serialization
@@ -45,9 +46,21 @@ def _generate_pair(keys_dir: Path) -> None:
         _write_exclusive(keys_dir / PRIVATE_FILE, private_pem, 0o600)
 
 
+def normalize_pem(value: str) -> str:
+    """PEM text as pasted into a hosting dashboard: with real newlines, with literal \n, or squashed onto
+    one line (line breaks turned into spaces). All of them become a valid PEM block."""
+    value = value.strip().replace("\\n", "\n").replace("\r", "")
+    match = re.fullmatch(r"(-----BEGIN [A-Z ]+-----)\s*(.+?)\s*(-----END [A-Z ]+-----)", value, re.S)
+    if not match:
+        return value
+    body = re.sub(r"\s+", "", match.group(2))
+    lines = [body[i:i + 64] for i in range(0, len(body), 64)]
+    return "\n".join([match.group(1), *lines, match.group(3)]) + "\n"
+
+
 def load_keys(keys_dir: Path, debug: bool) -> tuple[str, str]:
-    private_pem = os.getenv("JWT_PRIVATE_KEY", "").replace("\\n", "\n")
-    public_pem = os.getenv("JWT_PUBLIC_KEY", "").replace("\\n", "\n")
+    private_pem = normalize_pem(os.getenv("JWT_PRIVATE_KEY", ""))
+    public_pem = normalize_pem(os.getenv("JWT_PUBLIC_KEY", ""))
     if private_pem and public_pem:
         return private_pem, public_pem
 
