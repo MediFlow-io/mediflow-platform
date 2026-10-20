@@ -181,9 +181,10 @@ func TestVisitJSONMatchesContract(t *testing.T) {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
+	// Additive changes only: chief_complaint, pain_score and vitals were added with vitals storage.
 	want := []string{"arrival_mode", "assigned_clinician", "assigned_clinician_name", "called_at", "checked_in_at",
-		"completed_at", "department", "department_code", "department_name", "esi", "id", "patient",
-		"patient_hospital_number", "patient_name", "started_at", "status", "visit_number"}
+		"chief_complaint", "completed_at", "department", "department_code", "department_name", "esi", "id",
+		"pain_score", "patient", "patient_hospital_number", "patient_name", "started_at", "status", "visit_number", "vitals"}
 	if !reflect.DeepEqual(keys, want) {
 		t.Fatalf("visit fields changed:\n got %v\nwant %v", keys, want)
 	}

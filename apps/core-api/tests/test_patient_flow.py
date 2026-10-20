@@ -72,6 +72,26 @@ class PatientAuditAndLinkTests(FlowTestCase):
 
 
 @FAST_HASHER
+class StudentVitalsTests(FlowTestCase):
+    def test_latest_vitals_are_shown_without_complaint_text(self):
+        self.patient.user = User.objects.get(username="student")
+        self.patient.save()
+        Visit.objects.create(patient=self.patient, department=self.opd, esi=3, status="completed",
+                             chief_complaint="private words", heart_rate=80, temperature_c="37.2")
+        data = self.as_user("student").get("/api/me/health").data
+        self.assertEqual(data["latestVitals"]["heartRate"], 80)
+        self.assertEqual(data["latestVitals"]["temperatureC"], 37.2)
+        self.assertIsNone(data["latestVitals"]["spo2"])
+        self.assertNotIn("private words", str(data))
+
+    def test_no_vitals_recorded(self):
+        self.patient.user = User.objects.get(username="student")
+        self.patient.save()
+        self.check_in()
+        self.assertIsNone(self.as_user("student").get("/api/me/health").data["latestVitals"])
+
+
+@FAST_HASHER
 class SecurityTests(TestCase):
     def setUp(self):
         cache.clear()

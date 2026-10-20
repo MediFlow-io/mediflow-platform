@@ -46,6 +46,15 @@ class Visit(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     assigned_clinician = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_visits")
+    # Triage observations recorded at check-in (written by the Go patient-flow service; schema owned here).
+    chief_complaint = models.TextField(blank=True, default="")
+    pain_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    heart_rate = models.PositiveSmallIntegerField(null=True, blank=True)      # beats/min
+    resp_rate = models.PositiveSmallIntegerField(null=True, blank=True)       # breaths/min
+    spo2 = models.PositiveSmallIntegerField(null=True, blank=True)            # %
+    temperature_c = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    systolic_bp = models.PositiveSmallIntegerField(null=True, blank=True)     # mmHg
+    avpu = models.CharField(max_length=1, blank=True, default="")             # A, V, P or U
     ACTIVE_STATUSES = (Status.WAITING, Status.CALLED, Status.IN_PROGRESS)
     class Meta: ordering = ("esi", "checked_in_at")
     def save(self, *args, **kwargs):
