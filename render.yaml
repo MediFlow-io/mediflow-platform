@@ -1,0 +1,203 @@
+# Render Blueprint: every MediFlow service as a free Render web service; the database is on Neon.
+# How to use it: deploy/render/README.md. In short: Render → New → Blueprint → this repo, then fill in the
+# values Render asks for (Neon connection string, JWT keys, console key: deploy/render/make-secrets.sh).
+#
+# Free Render services can't use the private network, so they call each other over their public
+# https://<name>.onrender.com addresses. If Render had to rename a service (name already taken), update
+# the matching *_URL values below in the dashboard.
+
+envVarGroups:
+  - name: mediflow-shared
+    envVars:
+      - key: AI_SERVICE_TOKEN       # Django ↔ AI service shared secret
+        generateValue: true
+      - key: TIME_ZONE
+        value: Africa/Lagos
+
+services:
+  # ---------------------------------------------------------------- core API (Django)
+  - type: web
+    name: mediflow-io-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/core-api
+    dockerfilePath: ./apps/core-api/Dockerfile
+    dockerCommand: >-
+      sh -c "python manage.py migrate --noinput && python manage.py seed_demo &&
+      exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 2 --timeout 90 --access-logfile -"
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        value: "8000"
+      - key: DATABASE_URL           # Neon connection string (direct, with ?sslmode=require)
+        sync: false
+      - key: JWT_PRIVATE_KEY        # from deploy/render/make-secrets.sh
+        sync: false
+      - key: JWT_PUBLIC_KEY
+        sync: false
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_ALLOWED_HOSTS
+        value: .onrender.com,localhost,127.0.0.1
+      - key: CORS_ALLOWED_ORIGINS
+        value: https://mediflow-io-web.onrender.com,https://mediflow-io-student.onrender.com
+      - key: AI_SERVICE_URL
+        value: https://mediflow-io-ai.onrender.com
+      - key: AI_SERVICE_TIMEOUT     # the AI service may be waking up
+        value: "60"
+      - key: DEMO_PASSWORD          # password of the demo accounts (admin, manager, doctor, nurse)
+        generateValue: true
+      - fromGroup: mediflow-shared
+
+  # ---------------------------------------------------------------- AI service (FastAPI)
+  - type: web
+    name: mediflow-io-ai
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/ai-service
+    dockerfilePath: ./apps/ai-service/Dockerfile
+    healthCheckPath: /ai/health
+    envVars:
+      - key: PORT
+        value: "8001"
+      - key: AI_ENV
+        value: production
+      - fromGroup: mediflow-shared
+
+  # ---------------------------------------------------------------- patient flow (Go)
+  - type: web
+    name: mediflow-io-flow
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/patient-flow
+    dockerfilePath: ./apps/patient-flow/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8090"
+      - key: DATABASE_URL           # the same Neon connection string
+        sync: false
+      - key: JWKS_URL
+        value: https://mediflow-io-api.onrender.com/api/auth/jwks
+      - key: CLINIC_HOURS
+        value: 08:00-16:00
+      - key: CLINIC_DAYS
+        value: Mon-Fri
+      - fromGroup: mediflow-shared
+
+  # ---------------------------------------------------------------- notifications (Flask)
+  - type: web
+    name: mediflow-io-notify
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/notifications
+    dockerfilePath: ./apps/notifications/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8095"
+      - key: DATABASE_URL           # DIRECT Neon connection (not "-pooler"): live events use LISTEN
+        sync: false
+      - key: JWKS_URL
+        value: https://mediflow-io-api.onrender.com/api/auth/jwks
+      - fromGroup: mediflow-shared
+
+  # ---------------------------------------------------------------- auth gateway (Go)
+  - type: web
+    name: mediflow-io-gateway
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/gateway
+    dockerfilePath: ./apps/gateway/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "8080"
+      - key: DJANGO_BASE_URL
+        value: https://mediflow-io-api.onrender.com
+      - key: ALLOWED_ORIGIN
+        value: https://mediflow-io-web.onrender.com
+      - key: UPSTREAM_TIMEOUT
+        value: 90s
+
+  # ---------------------------------------------------------------- staff app (React + Nginx)
+  - type: web
+    name: mediflow-io-web
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/web
+    dockerfilePath: ./apps/web/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "80"
+      - key: VITE_STUDENT_DASHBOARD_URL   # build-time: where students go after signing in
+        value: https://mediflow-io-student.onrender.com
+      - key: API_URL
+        value: https://mediflow-io-api.onrender.com
+      - key: GATEWAY_URL
+        value: https://mediflow-io-gateway.onrender.com
+      - key: FLOW_URL
+        value: https://mediflow-io-flow.onrender.com
+      - key: NOTIFY_URL
+        value: https://mediflow-io-notify.onrender.com
+      - key: PROXY_TIMEOUT
+        value: 90s
+
+  # ---------------------------------------------------------------- student dashboard (React + Nginx)
+  - type: web
+    name: mediflow-io-student
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/student-dashboard
+    dockerfilePath: ./apps/student-dashboard/Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "80"
+      - key: API_URL
+        value: https://mediflow-io-api.onrender.com
+      - key: GATEWAY_URL
+        value: https://mediflow-io-gateway.onrender.com
+      - key: FLOW_URL
+        value: https://mediflow-io-flow.onrender.com
+      - key: NOTIFY_URL
+        value: https://mediflow-io-notify.onrender.com
+      - key: PROXY_TIMEOUT
+        value: 90s
+
+  # ---------------------------------------------------------------- admin console (Laravel)
+  - type: web
+    name: mediflow-io-admin
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerContext: ./apps/admin-console
+    dockerfilePath: ./apps/admin-console/Dockerfile
+    healthCheckPath: /up
+    envVars:
+      - key: PORT
+        value: "80"
+      - key: APP_KEY                # base64:… from deploy/render/make-secrets.sh
+        sync: false
+      - key: APP_DEBUG
+        value: "false"
+      - key: APP_URL
+        value: https://mediflow-io-admin.onrender.com
+      - key: MEDIFLOW_GATEWAY_URL
+        value: https://mediflow-io-gateway.onrender.com
+      - key: MEDIFLOW_API_URL
+        value: https://mediflow-io-api.onrender.com
+      - key: MEDIFLOW_FLOW_URL
+        value: https://mediflow-io-flow.onrender.com
+      - key: MEDIFLOW_TIMEOUT       # backends may be waking up
+        value: "90"
