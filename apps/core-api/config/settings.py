@@ -30,7 +30,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 if os.getenv("DATABASE_URL"):
     # e.g. postgresql://user:pass@host/db?sslmode=require (Neon, Render). Query options go to libpq.
     from urllib.parse import parse_qsl, unquote, urlsplit
-    _db = urlsplit(os.environ["DATABASE_URL"])
+    _db = urlsplit(os.environ["DATABASE_URL"].strip())
     DATABASES = {"default": {"ENGINE": "django.db.backends.postgresql", "NAME": unquote(_db.path.lstrip("/")),
                              "USER": unquote(_db.username or ""), "PASSWORD": unquote(_db.password or ""),
                              "HOST": _db.hostname or "", "PORT": str(_db.port or 5432),

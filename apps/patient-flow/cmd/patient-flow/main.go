@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 	_ "time/tzdata" // the hospital time zone must resolve even on minimal images and Windows
@@ -34,7 +35,7 @@ func env(key, fallback string) string {
 
 // databaseURL uses DATABASE_URL, or builds one from the same POSTGRES_* variables as the core API.
 func databaseURL() string {
-	if dsn := os.Getenv("DATABASE_URL"); dsn != "" {
+	if dsn := strings.TrimSpace(os.Getenv("DATABASE_URL")); dsn != "" { // pasted values often end with a newline
 		return dsn
 	}
 	u := url.URL{

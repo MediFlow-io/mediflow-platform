@@ -6,7 +6,7 @@ from urllib.parse import quote
 
 def database_url() -> str:
     """DATABASE_URL, or one built from the same POSTGRES_* variables as the core API."""
-    if url := os.getenv("DATABASE_URL"):
+    if url := os.getenv("DATABASE_URL", "").strip():
         return url
     user = quote(os.getenv("POSTGRES_USER", "mediflow"), safe="")
     password = quote(os.getenv("POSTGRES_PASSWORD", ""), safe="")
