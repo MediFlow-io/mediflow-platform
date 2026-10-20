@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard - FUTA Hospital Management System</title>
+  <link rel="stylesheet" href="public style.css">
+</head>
+<body>
+  <script src="homepage.js"></script>
+
+  <header class="topbar">
+    <h2>FUTA Hospital Management System</h2>
+
+    <nav>
+      <a href="dashboard.html">Dashboard</a>
+      <a href="patient-form.html">Register Patient</a>
+      <a href="admin-users.html">Create Student</a>
+      <button id="logoutButton" class="logout-button">Logout</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <div class="page-heading">
+      <div>
+        <h1>Patient Records</h1>
+        <p class="muted">Search, view, and update patient information.</p>
+      </div>
+
+      <a href="patient-form.html" class="button">+ Register Patient</a>
+    </div>
+
+    <section class="assistant-card" aria-labelledby="assistantHeading">
+      <div class="assistant-heading">
+        <div>
+          <h2 id="assistantHeading">MediFlow AI help</h2>
+          <p class="muted">Use quick first-aid guidance or ask the configured AI service.</p>
+        </div>
+        <button id="aiButton" class="button secondary" type="button" aria-expanded="false" aria-controls="aiPanel">
+          Open AI help
+        </button>
+      </div>
+
+      <div id="aiPanel" class="assistant-panel" hidden>
+        <div class="quick-tip-row">
+          <label for="quickTipSelect">Quick first-aid tip</label>
+          <select id="quickTipSelect"></select>
+          <button id="quickTipButton" class="small-button" type="button">Show tip</button>
+        </div>
+        <form id="aiForm" class="assistant-form">
+          <label for="aiQuestion">Ask a general health question</label>
+          <div class="assistant-input-row">
+            <input id="aiQuestion" type="text" maxlength="500" placeholder="e.g. What should I do for a minor cut?" required>
+            <button class="button" type="submit">Ask AI</button>
+          </div>
+        </form>
+        <p id="aiResponse" class="assistant-response" role="status" aria-live="polite"></p>
+        <p class="assistant-disclaimer">This is educational guidance, not a diagnosis. Contact emergency services for urgent symptoms.</p>
+      </div>
+    </section>
+
+    <div id="message" class="message"></div>
+
+    <input
+      type="search"
+      id="searchInput"
+      class="search-input"
+      placeholder="Search by name, hospital number, phone, or sex"
+    >
+
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Hospital Number</th>
+            <th>Full Name</th>
+            <th>Sex</th>
+            <th>Phone</th>
+            <th>Diagnosis</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody id="patientTableBody"></tbody>
+      </table>
+    </div>
+  </main>
+
+  <script src="auth-guard.js"></script>
+  <script src="ai-assistant.js"></script>
+  <script src="ai-widget.js"></script>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

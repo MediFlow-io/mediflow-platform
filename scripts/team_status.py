@@ -189,7 +189,8 @@ def collect(gh: GitHub, areas: dict) -> RepoActivity:
         commit, _ = gh.request("GET", f"/commits/{raw['commit']['sha']}")
         login = (commit.get("author") or {}).get("login") or (commit.get("committer") or {}).get("login")
         if login:
-            branches.append(Branch(raw["name"], login, parse_time(commit["commit"]["committer"]["date"])))
+            # Author date = when the work was written (survives rebases and migrations).
+            branches.append(Branch(raw["name"], login, parse_time(commit["commit"]["author"]["date"])))
 
     issues = [Issue(i["number"], i["title"], i["html_url"], [a["login"] for a in i.get("assignees", [])],
                     parse_time(i["updated_at"]))

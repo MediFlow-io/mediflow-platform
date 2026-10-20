@@ -1,0 +1,13 @@
+{
+  "name": "futa-health-centre",
+  "private": true,
+  "version": "1.0.0",
+  "description": "FUTA Hospital Management System frontend and API server",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

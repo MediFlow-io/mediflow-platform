@@ -1,3 +1,18 @@
+# Vercel's Python builder reads dependencies from here; keep in sync with
+# requirements.txt, which the Dockerfile installs from.
+[project]
+name = "mediflow-ai-service"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115,<1",
+    "uvicorn[standard]>=0.30,<1",
+    "prometheus-client>=0.20,<1",
+]
+
+[project.scripts]
+app = "app.main:app"
+
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
