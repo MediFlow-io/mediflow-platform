@@ -134,6 +134,12 @@ class MediflowClient
         return $this->json('patch', 'api', "/api/departments/$id", $data);
     }
 
+    /** AI flow insights (expected waits and bottlenecks), computed by the core API and the AI service. */
+    public function insights(): array
+    {
+        return $this->json('get', 'api', '/api/ai/insights');
+    }
+
     // ------------------------------------------------------------------ clinic settings (core API)
 
     public function queueSettings(): array

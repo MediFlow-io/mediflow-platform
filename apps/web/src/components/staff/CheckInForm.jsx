@@ -30,6 +30,7 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
   const [avpu, setAvpu] = useState("A");
   const [vitals, setVitals] = useState({});
   const [suggestion, setSuggestion] = useState(null);
+  const [risk, setRisk] = useState(null);
   const [suggesting, setSuggesting] = useState(false);
   const [error, setError] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -51,13 +52,13 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
     const { chief_complaint, pain_score, vitals: observed } = observations();
     try {
       // Only clinical signals are sent. Names and record numbers stay in the core API.
-      const result = await mediflowApi.triageSuggestion({
-        chief_complaint,
-        age_years: ageInYears(patient.dateOfBirth),
-        pain_score,
-        vitals: observed,
-      });
+      // The NEWS2 score is a second opinion from the vitals alone; if it fails the ESI suggestion still shows.
+      const [result, news2] = await Promise.all([
+        mediflowApi.triageSuggestion({ chief_complaint, age_years: ageInYears(patient.dateOfBirth), pain_score, vitals: observed }),
+        mediflowApi.riskScore({ vitals: observed }).catch(() => null),
+      ]);
       setSuggestion(result);
+      setRisk(news2);
       if (!esi) setEsi(String(result.suggested_esi));
     } catch (err) {
       setError(err);
@@ -150,6 +151,14 @@ export default function CheckInForm({ patient, onDone, onCancel }) {
               <ul>{suggestion.reasons.map((r) => <li key={r}>{r}</li>)}</ul>
               {suggestion.missing_vitals.length > 0 && <p className="hint">Missing: {suggestion.missing_vitals.join(", ")}</p>}
               <p className="hint">{suggestion.disclaimer} You choose the final ESI above.</p>
+            </div>
+          )}
+          {risk && (
+            <div className={`suggestion span-2 news2-${risk.risk}`} role="status" aria-label="NEWS2 early warning score">
+              <div><strong>NEWS2 {risk.score}{risk.complete ? "" : "+"}</strong> · {risk.risk} risk</div>
+              <p>{risk.recommendation}</p>
+              {risk.reasons.length > 0 && <ul>{risk.reasons.map((r) => <li key={r}>{r}</li>)}</ul>}
+              <p className="hint">National Early Warning Score 2, from the vital signs only.</p>
             </div>
           )}
         </fieldset>

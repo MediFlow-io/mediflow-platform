@@ -60,3 +60,104 @@ class AskResponse(BaseModel):
     emergency: bool
     source: Literal["built-in-rules"] = "built-in-rules"
     disclaimer: str
+
+
+class RiskScoreRequest(BaseModel):
+    """Vital signs only. No names or identifiers."""
+    model_config = ConfigDict(extra="forbid")
+
+    vitals: Vitals = Field(default_factory=Vitals)
+    on_oxygen: bool = False
+    new_confusion: bool = False
+
+
+class RiskParameter(BaseModel):
+    parameter: str
+    value: int | float | str | bool | None
+    points: int
+
+
+class RiskScoreResponse(BaseModel):
+    score: int
+    risk: Literal["low", "low-medium", "medium", "high"]
+    complete: bool
+    parameters: list[RiskParameter]
+    missing: list[str]
+    reasons: list[str]
+    recommendation: str
+    requires_clinician_review: Literal[True] = True
+    method: Literal["news2"] = "news2"
+    model_version: str
+    disclaimer: str = DISCLAIMER
+
+
+class QueueInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field("", max_length=100)
+    ahead: int = Field(ge=0, le=1000)
+    clinicians: int = Field(1, ge=0, le=100)
+    recent_service_minutes: list[float] = Field(default_factory=list, max_length=1000)
+
+
+class WaitTimeRequest(BaseModel):
+    """One or more queues (e.g. every department) in a single call."""
+    model_config = ConfigDict(extra="forbid")
+
+    queues: list[QueueInput] = Field(min_length=1, max_length=100)
+
+
+class WaitEstimate(BaseModel):
+    name: str
+    expected_minutes: int
+    low_minutes: int
+    high_minutes: int
+    confidence: Literal["low", "medium", "high"]
+    basis: str
+    note: str
+
+
+class WaitTimeResponse(BaseModel):
+    estimates: list[WaitEstimate]
+    method: Literal["statistics"] = "statistics"
+    model_version: str
+
+
+class DepartmentFlow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(max_length=100)
+    check_ins: int = Field(ge=0)
+    waiting_now: int = Field(0, ge=0)
+    avg_wait_minutes: float | None = Field(None, ge=0)
+    avg_call_to_start_minutes: float | None = Field(None, ge=0)
+    avg_consult_minutes: float | None = Field(None, ge=0)
+    seen_within_target_percent: float | None = Field(None, ge=0, le=100)
+
+
+class HourFlow(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    hour: int = Field(ge=0, le=23)
+    check_ins: int = Field(ge=0)
+    avg_wait_minutes: float | None = Field(None, ge=0)
+
+
+class BottleneckRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    departments: list[DepartmentFlow] = Field(default_factory=list, max_length=100)
+    hours: list[HourFlow] = Field(default_factory=list, max_length=24)
+
+
+class Finding(BaseModel):
+    severity: Literal["high", "medium", "low"]
+    department: str
+    stage: str
+    message: str
+
+
+class BottleneckResponse(BaseModel):
+    findings: list[Finding]
+    method: Literal["rules"] = "rules"
+    model_version: str
