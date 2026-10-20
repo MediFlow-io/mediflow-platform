@@ -85,3 +85,5 @@ export const cancelAppointment = (id) => request(`/api/appointments/${id}/cancel
 export const getNotifications = () => request("/api/notifications?limit=50");
 export const markNotificationRead = (id) => request(`/api/notifications/${id}/read`, { method: "POST" });
 export const markAllNotificationsRead = () => request("/api/notifications/read-all", { method: "POST" });
+export const getNotificationPreferences = () => request("/api/notifications/preferences");
+export const setNotificationPreferences = (body) => request("/api/notifications/preferences", { method: "PUT", body });

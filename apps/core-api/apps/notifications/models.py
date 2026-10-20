@@ -27,3 +27,14 @@ class Delivery(models.Model):
     status = models.CharField(max_length=10)        # sent, failed, skipped
     detail = models.CharField(max_length=200, blank=True, default="")
     created_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=1)
+    # Failed deliveries are retried with backoff until this is null (gave up or succeeded).
+    next_attempt_at = models.DateTimeField(null=True, blank=True)
+
+
+class Preference(models.Model):
+    """Which extra channels a person wants. In-app notifications can't be turned off."""
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="notification_preference")
+    email = models.BooleanField(default=True)
+    sms = models.BooleanField(default=True)
+    updated_at = models.DateTimeField()

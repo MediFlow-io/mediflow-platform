@@ -199,5 +199,7 @@ export const mediflowApi = {
   notifications: (params) => request(`/api/notifications${qs(params)}`),
   unreadNotifications: () => request("/api/notifications/unread-count"),
   markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: "POST" }),
+  notificationPreferences: () => request("/api/notifications/preferences"),
+  setNotificationPreferences: (body) => request("/api/notifications/preferences", { method: "PUT", body }),
   markAllNotificationsRead: () => request("/api/notifications/read-all", { method: "POST" }),
 };

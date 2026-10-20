@@ -21,7 +21,7 @@ class MediflowException extends RuntimeException
         $errors = [];
         if (is_array($body)) {
             foreach ($body as $field => $messages) {
-                $errors[(string) $field] = array_map('strval', (array) $messages);
+                $errors[(string) $field] = self::flatten($messages);
             }
         }
         $parts = [];
@@ -30,5 +30,19 @@ class MediflowException extends RuntimeException
         }
 
         return new self($parts ? implode(' ', $parts) : "The MediFlow service answered with an error ($status).", $status, $errors);
+    }
+
+    /** Messages can be nested (e.g. one list per row of a submitted week): collect them all as strings. */
+    private static function flatten(mixed $messages): array
+    {
+        if (! is_array($messages)) {
+            return [(string) $messages];
+        }
+        $out = [];
+        array_walk_recursive($messages, function ($message) use (&$out) {
+            $out[] = (string) $message;
+        });
+
+        return $out;
     }
 }

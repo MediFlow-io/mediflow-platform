@@ -91,6 +91,68 @@ class MediflowClient
         return $this->json('patch', 'api', "/api/departments/$id", $data);
     }
 
+    // ------------------------------------------------------------------ clinic settings (core API)
+
+    public function queueSettings(): array
+    {
+        return $this->json('get', 'api', '/api/clinic/queue-settings');
+    }
+
+    public function updateQueueSettings(array $data): array
+    {
+        return $this->json('put', 'api', '/api/clinic/queue-settings', $data);
+    }
+
+    public function hours(): array
+    {
+        return $this->json('get', 'api', '/api/clinic/hours');
+    }
+
+    /** Replaces a department's week (null = the clinic default). An empty list removes it. */
+    public function putHours(?int $department, array $days): array
+    {
+        return $this->json('put', 'api', '/api/clinic/hours', ['department' => $department, 'days' => $days]);
+    }
+
+    public function holidays(bool $upcomingOnly = false): array
+    {
+        return $this->json('get', 'api', '/api/clinic/holidays', $upcomingOnly ? ['upcoming' => 1] : []);
+    }
+
+    public function addHoliday(array $data): array
+    {
+        return $this->json('post', 'api', '/api/clinic/holidays', $data);
+    }
+
+    public function removeHoliday(int $id): void
+    {
+        $this->json('delete', 'api', "/api/clinic/holidays/$id");
+    }
+
+    public function shifts(): array
+    {
+        return $this->json('get', 'api', '/api/clinic/shifts');
+    }
+
+    public function addShift(array $data): array
+    {
+        return $this->json('post', 'api', '/api/clinic/shifts', $data);
+    }
+
+    public function removeShift(int $id): void
+    {
+        $this->json('delete', 'api', "/api/clinic/shifts/$id");
+    }
+
+    /** Active staff accounts (everyone but students), for the rota. */
+    public function activeStaff(): array
+    {
+        $users = $this->json('get', 'api', '/api/users', ['active' => 'true']);
+        $users = $users['results'] ?? $users;
+
+        return array_values(array_filter($users, fn ($u) => ($u['role'] ?? '') !== 'student'));
+    }
+
     // ------------------------------------------------------------------ plumbing
 
     private function json(string $method, string $service, string $path, array $data = []): array

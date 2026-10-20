@@ -61,6 +61,37 @@ export default function NotificationsPage({ onNavigate, onUnreadChange }) {
           ))}
         </ul>
       )}
+      <DeliveryPreferences />
     </>
+  );
+}
+
+function DeliveryPreferences() {
+  const loaded = useApi(() => mediflowApi.notificationPreferences(), []);
+  const [changed, setChanged] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const prefs = changed ?? loaded.data;
+  if (!prefs) return null;
+  async function toggle(channel) {
+    setChanged({ ...prefs, [channel]: !prefs[channel] }); // show the change at once; undo it if saving fails
+    setSaving(true);
+    try {
+      setChanged(await mediflowApi.setNotificationPreferences({ [channel]: !prefs[channel] }));
+    } catch {
+      setChanged(prefs);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <section className="panel narrow">
+      <h2>Also tell me by</h2>
+      {[["email", "Email"], ["sms", "SMS"]].map(([channel, label]) => (
+        <label key={channel} className="inline-check">
+          <input type="checkbox" checked={prefs[channel]} disabled={saving} onChange={() => toggle(channel)} /> {label}
+        </label>
+      ))}
+      <p className="small muted">Emails and texts only say there is a new notification; the details stay here.</p>
+    </section>
   );
 }

@@ -64,8 +64,9 @@ duplicate anything:
   notifications for that period are lost.
 - It is the **only writer** of `notifications_notification` and `notifications_delivery`. As with every
   table, the schema comes from a Django migration (`apps/core-api/apps/notifications`).
-- It **reads** visits, appointments, patients, departments, users and the audit log (to know who made a
-  change). It never writes them.
+- It **reads** visits, appointments, patients, departments, users, triage changes, clinic settings and
+  rosters, and the audit log (to know who made a change). It never writes them.
+- It also owns `notifications_preference`. Its scheduled jobs run on one instance at a time (advisory lock).
 - It verifies the same RS256 access tokens via the JWKS, and re-reads `is_active` on every request.
 - Notification text has no clinical details. Email/SMS (when a provider is plugged in) only say "you have a
   new notification": the content stays behind the login.

@@ -29,5 +29,5 @@ class Settings:
     time_zone: str = field(default_factory=lambda: os.getenv("TIME_ZONE", "Africa/Lagos"))
     # Extra delivery channels on top of in-app: "email", "sms". Empty = in-app only.
     channels: list[str] = field(default_factory=lambda: _list(os.getenv("NOTIFY_CHANNELS", "")))
-    # Turn the event listener off to run the API alone (tests, or a second API replica).
+    # Turn the event listener and scheduled jobs off to run the API alone (tests, or a second API replica).
     listen: bool = field(default_factory=lambda: os.getenv("LISTEN_EVENTS", "1") != "0")
