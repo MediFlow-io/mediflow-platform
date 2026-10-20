@@ -31,8 +31,31 @@ export default function DashboardPage() {
             <Stat label="In consultation" value={data.inConsultation} />
             <Stat label="Completed today" value={data.completedToday} />
             <Stat label="Average wait" value={minutes(data.averageWaitMinutes)} hint="Check-in to called" />
-            <Stat label="Longest current wait" value={minutes(data.longestCurrentWaitMinutes)} tone={data.longestCurrentWaitMinutes > 60 ? "alert" : undefined} />
+            <Stat label="Longest current wait" value={minutes(data.longestCurrentWaitMinutes)} tone={data.longestCurrentWaitMinutes > (data.longWaitMinutes ?? 60) ? "alert" : undefined} />
+            <Stat label="Over ESI target" value={data.overTarget ?? 0} tone={data.overTarget ? "alert" : undefined} hint="Waiting longer than their level allows" />
           </div>
+          {data.departmentLoad?.length > 0 && (
+            <section className="panel">
+              <h2>Queue load now</h2>
+              <table className="table">
+                <thead>
+                  <tr><th>Department</th><th className="num">Waiting</th><th className="num">In consultation</th><th className="num">Longest wait</th><th className="num">Over target</th><th className="num">Over {data.longWaitMinutes} min</th></tr>
+                </thead>
+                <tbody>
+                  {data.departmentLoad.map((d) => (
+                    <tr key={d.name} className={d.overTarget ? "row-urgent" : undefined}>
+                      <td>{d.name}</td>
+                      <td className="num">{d.waiting}</td>
+                      <td className="num">{d.inConsultation}</td>
+                      <td className="num">{d.waiting ? minutes(d.longestWaitMinutes) : "—"}</td>
+                      <td className="num">{d.overTarget}</td>
+                      <td className="num">{d.longWaits}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
           <section className="panel">
             <h2>Check-ins by department</h2>
             {data.byDepartment.length === 0 ? (

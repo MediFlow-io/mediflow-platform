@@ -19,6 +19,7 @@ from apps.patients.views import DepartmentViewSet, PatientViewSet
 from apps.operations.views import HealthView
 from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, TriageSuggestView
+from apps.clinic import views as clinic
 
 router = DefaultRouter()
 router.trailing_slash = ""  # Existing MediFlow frontend calls /api/patients, not /api/patients/.
@@ -48,5 +49,13 @@ urlpatterns = [
     path("api/audit-logs", AuditLogListView.as_view()), path("api/audit-logs/", AuditLogListView.as_view()),
     path("api/ai/ask", AskView.as_view()), path("api/ai/ask/", AskView.as_view()),
     path("api/ai/triage", TriageSuggestView.as_view()), path("api/ai/triage/", TriageSuggestView.as_view()),
+    # Clinic settings: read by everyone signed in, changed by admins (edited from the Laravel console).
+    path("api/clinic/settings", clinic.ClinicSettingsView.as_view()),
+    path("api/clinic/queue-settings", clinic.QueueSettingsView.as_view()),
+    path("api/clinic/hours", clinic.HoursView.as_view()),
+    path("api/clinic/holidays", clinic.HolidayListView.as_view()),
+    path("api/clinic/holidays/<int:pk>", clinic.HolidayDetailView.as_view()),
+    path("api/clinic/shifts", clinic.ShiftListView.as_view()),
+    path("api/clinic/shifts/<int:pk>", clinic.ShiftDetailView.as_view()),
     path("api/", include(router.urls)),
 ]

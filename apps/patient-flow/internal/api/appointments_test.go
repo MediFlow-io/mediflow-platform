@@ -50,6 +50,14 @@ func (f *fakeStore) AppointmentAction(_ context.Context, _ store.User, _ int64, 
 	return f.appts[0], nil
 }
 
+func (f *fakeStore) Schedule(_ context.Context, departmentID int64, base flow.Schedule) (flow.Schedule, error) {
+	f.gotScheduleDept = departmentID
+	if f.schedule != nil {
+		return *f.schedule, nil
+	}
+	return base, nil
+}
+
 func strPtr(s string) *string { return &s }
 
 // apptFixture: student (user 3) owns patient 8, which has one confirmed appointment today at 14:30.
@@ -168,5 +176,32 @@ func TestActionsValidateTheirInput(t *testing.T) {
 	}
 	if rec, _ := call(t, h, "POST", "/api/appointments/30/postpone", "user-6", `{}`); rec.Code != 404 {
 		t.Fatalf("unknown action: %d", rec.Code)
+	}
+}
+
+func TestSlotsUseTheDepartmentScheduleAndHolidays(t *testing.T) {
+	f, h := apptFixture()
+	sched := flow.DefaultSchedule(lagos)
+	sched.Holidays = map[string]string{"2026-10-14": "Founders Day"}
+	f.schedule = &sched
+	rec, body := call(t, h, "POST", "/api/appointments", "user-3", `{"department": 4, "date": "2026-10-14", "time": "09:30"}`)
+	if rec.Code != 400 || body["time"].([]any)[0] != "The clinic is closed on Wed 14 Oct (Founders Day)." || f.gotScheduleDept != 4 {
+		t.Fatalf("holiday booking: %d %v (department %d)", rec.Code, body, f.gotScheduleDept)
+	}
+	rec, body = call(t, h, "GET", "/api/appointments/mine", "user-3", "")
+	if rec.Code != 200 || f.gotScheduleDept != 0 {
+		t.Fatalf("mine uses the clinic-wide schedule: %d (department %d)", rec.Code, f.gotScheduleDept)
+	}
+	holidays := body["holidays"].([]any)
+	if len(holidays) != 1 || holidays[0].(map[string]any)["name"] != "Founders Day" {
+		t.Fatalf("holidays: %v", body["holidays"])
+	}
+	// Rescheduling passes a slot check that uses the appointment's department.
+	call(t, h, "POST", "/api/appointments/30/confirm", "user-6", `{"date": "2026-10-14", "time": "10:00"}`)
+	if f.gotUpdate.SlotAllowed == nil {
+		t.Fatal("confirm must pass SlotAllowed")
+	}
+	if msg, err := f.gotUpdate.SlotAllowed(4, time.Date(2026, 10, 14, 10, 0, 0, 0, lagos)); err != nil || msg == "" {
+		t.Fatalf("slot check on a holiday: %q %v", msg, err)
 	}
 }

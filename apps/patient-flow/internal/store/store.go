@@ -91,6 +91,7 @@ type CheckIn struct {
 // VisitPatch holds the editable fields. Nil means "leave unchanged".
 type VisitPatch struct {
 	ESI          *int
+	ESIReason    string // optional, kept with the triage change
 	DepartmentID *int64
 	ArrivalMode  *string
 	ClinicianID  **int64 // non-nil pointer to nil = unassign
@@ -278,8 +279,9 @@ func (s *Store) UpdateVisit(ctx context.Context, actor User, id int64, p VisitPa
 	}
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var status, code string
-		if err := tx.QueryRow(ctx, `SELECT v.status, d.code FROM patients_visit v JOIN patients_department d ON d.id = v.department_id
-			WHERE v.id = $1 FOR UPDATE OF v`, id).Scan(&status, &code); err != nil {
+		var currentESI int
+		if err := tx.QueryRow(ctx, `SELECT v.status, v.esi, d.code FROM patients_visit v JOIN patients_department d ON d.id = v.department_id
+			WHERE v.id = $1 FOR UPDATE OF v`, id).Scan(&status, &currentESI, &code); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrNotFound
 			}
@@ -346,6 +348,11 @@ func (s *Store) UpdateVisit(ctx context.Context, actor User, id int64, p VisitPa
 		}
 		if err := audit(ctx, tx, actor, "visit.updated", id, map[string]any{"fields": fields}); err != nil {
 			return err
+		}
+		if p.ESI != nil && *p.ESI != currentESI {
+			if err := recordTriageChange(ctx, tx, actor, id, currentESI, *p.ESI, p.ESIReason); err != nil {
+				return err
+			}
 		}
 		return notify(ctx, tx, Event{VisitID: id, Action: "updated", Status: status, Department: code})
 	})

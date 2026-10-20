@@ -36,6 +36,11 @@ type Store interface {
 	ListAppointments(ctx context.Context, f store.AppointmentFilter) ([]store.Appointment, error)
 	CreateAppointment(ctx context.Context, actor store.User, in store.NewAppointment) (store.Appointment, error)
 	AppointmentAction(ctx context.Context, actor store.User, id int64, action string, up store.AppointmentUpdate) (store.Appointment, error)
+	Schedule(ctx context.Context, departmentID int64, base flow.Schedule) (flow.Schedule, error)
+	QueueSettings(ctx context.Context) (store.QueueSettings, error)
+	QueueStats(ctx context.Context, now time.Time) (map[string]flow.DeptStats, error)
+	ChangeTriage(ctx context.Context, actor store.User, id int64, esi int, reason string) (store.Visit, error)
+	TriageHistory(ctx context.Context, id int64) ([]store.TriageChange, error)
 }
 
 type TokenVerifier interface {
@@ -50,7 +55,7 @@ type Server struct {
 	Log       *slog.Logger
 	Now       func() time.Time
 	Heartbeat time.Duration // keep-alive interval for the event stream
-	Schedule  flow.Schedule // bookable clinic hours for appointments
+	Schedule  flow.Schedule // fallback clinic hours (CLINIC_HOURS/CLINIC_DAYS) until the admin console sets them
 }
 
 func (s *Server) Routes() http.Handler {
@@ -65,7 +70,10 @@ func (s *Server) Routes() http.Handler {
 	handle("PATCH /api/visits/{id}", s.authed(flow.CanEditVisit, s.updateVisit))
 	// Per-action role rules live in flow.Check; any check-in role may reach the route.
 	handle("POST /api/visits/{id}/{action}", s.authed(flow.CanCheckIn, s.transition))
+	handle("POST /api/visits/{id}/triage", s.authed(flow.CanTriage, s.changeTriage))
+	handle("GET /api/visits/{id}/triage", s.authed(flow.CanReadVisits, s.triageHistory))
 	handle("GET /api/queue", s.authed(flow.CanReadVisits, s.queue))
+	handle("GET /api/queue/me", s.authed(anyone, s.myQueue))
 	handle("GET /api/queue/events", s.authed(flow.CanReadVisits, s.queueEvents))
 	handle("GET /api/dashboard", s.authed(flow.CanSeeDashboard, s.dashboard))
 	handle("GET /api/reports/flow", s.authed(flow.CanSeeReports, s.flowReport))
@@ -403,6 +411,7 @@ func (s *Server) updateVisit(w http.ResponseWriter, r *http.Request) {
 		} else {
 			problems["esi"] = []string{"A valid integer is required."}
 		}
+		p.ESIReason = strings.TrimSpace(stringField(fields, "esi_reason", 300, problems))
 	}
 	if raw, ok := fields["department"]; ok {
 		if v, ok := intField(raw); ok {
@@ -475,6 +484,12 @@ type queueEntry struct {
 	WaitingMinutes int    `json:"waitingMinutes"`
 	Wait           string `json:"wait"`
 	ChiefComplaint string `json:"chiefComplaint"`
+	// Queue engine: people ahead in the same department, estimated minutes until called (null when
+	// unavailable), the ESI target and whether it has been exceeded.
+	AheadInDepartment    int  `json:"aheadInDepartment"`
+	EstimatedWaitMinutes *int `json:"estimatedWaitMinutes"`
+	TargetMinutes        int  `json:"targetMinutes"`
+	OverTarget           bool `json:"overTarget"`
 }
 
 func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
@@ -485,6 +500,8 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	now := s.Now()
+	in := s.loadInsights(r.Context())
+	ahead := map[string]int{}
 	out := make([]queueEntry, len(visits))
 	for i, v := range visits {
 		waited := minutesBetween(v.CheckedInAt, now)
@@ -497,7 +514,17 @@ func (s *Server) queue(w http.ResponseWriter, r *http.Request) {
 			HospitalNumber: v.PatientHospitalNumber, Department: v.DepartmentCode, Priority: v.ESI,
 			Status: label, Position: i + 1, Arrival: v.CheckedInAt.In(s.Loc).Format("15:04"),
 			WaitingMinutes: waited, Wait: fmt.Sprintf("%d min", waited), ChiefComplaint: v.Vitals.Complaint,
+			AheadInDepartment: ahead[v.DepartmentCode],
 		}
+		if flow.ValidESI(v.ESI) {
+			out[i].TargetMinutes = in.settings.ESITargetMinutes[v.ESI]
+			out[i].OverTarget = flow.OverTarget(v.ESI, waited, in.settings.ESITargetMinutes)
+		}
+		if in.ok {
+			est := flow.EstimateWaitMinutes(ahead[v.DepartmentCode], in.stats[v.DepartmentCode])
+			out[i].EstimatedWaitMinutes = &est
+		}
+		ahead[v.DepartmentCode]++
 	}
 	writeJSON(w, http.StatusOK, out)
 }
@@ -556,7 +583,15 @@ func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
 		s.fail(w, r, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, buildDashboard(today, active, s.Now()))
+	out := buildDashboard(today, active, s.Now())
+	settings, err := s.Store.QueueSettings(r.Context())
+	if err != nil {
+		s.Log.Warn("queue settings unavailable", "error", err)
+		settings = store.DefaultQueueSettings()
+	}
+	out["departmentLoad"], out["overTarget"], out["longWaits"] = loadByDepartment(active, settings, s.Now())
+	out["longWaitMinutes"] = settings.LongWaitMinutes
+	writeJSON(w, http.StatusOK, out)
 }
 
 // buildDashboard computes the same numbers the core API used to: today's visits plus whatever is

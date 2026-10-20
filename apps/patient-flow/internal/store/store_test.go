@@ -52,7 +52,8 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(ctx, `TRUNCATE operations_auditlog, patients_visit, patients_patient, patients_department, accounts_user RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE operations_auditlog, patients_visit, patients_patient, patients_department, accounts_user,
+		clinic_servicehours, clinic_holiday, clinic_queuesettings, clinic_staffshift, patients_triagechange RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("schema missing? run the core API migrations first: %v", err)
 	}
 	f := &fixture{pool: pool, s: New(pool)}

@@ -38,24 +38,30 @@ func (fakeTokens) Verify(_ context.Context, token string) (*auth.Claims, error) 
 }
 
 type fakeStore struct {
-	users       map[int64]store.User
-	visits      []store.Visit
-	today       []store.DashboardRow
-	active      []store.DashboardRow
-	checkInErr  error
-	gotFilter   store.VisitFilter
-	gotCheckIn  store.CheckIn
-	gotPatch    store.VisitPatch
-	transitions []string
-	reportRows  []store.ReportRow
-	appts       []store.Appointment
-	links       map[int64]int64 // user id -> patient id
-	gotAppt     store.NewAppointment
-	gotAction   string
-	gotUpdate   store.AppointmentUpdate
-	apptErr     error
-	reportSince time.Time
-	reportUntil time.Time
+	users           map[int64]store.User
+	visits          []store.Visit
+	today           []store.DashboardRow
+	active          []store.DashboardRow
+	checkInErr      error
+	gotFilter       store.VisitFilter
+	gotCheckIn      store.CheckIn
+	gotPatch        store.VisitPatch
+	transitions     []string
+	reportRows      []store.ReportRow
+	appts           []store.Appointment
+	links           map[int64]int64 // user id -> patient id
+	gotAppt         store.NewAppointment
+	gotAction       string
+	gotUpdate       store.AppointmentUpdate
+	apptErr         error
+	reportSince     time.Time
+	reportUntil     time.Time
+	schedule        *flow.Schedule // overrides the base schedule when set
+	gotScheduleDept int64
+	stats           map[string]flow.DeptStats
+	statsErr        error
+	gotTriage       []any
+	triage          []store.TriageChange
 }
 
 func (f *fakeStore) Ping(context.Context) error { return nil }
@@ -104,6 +110,24 @@ func (f *fakeStore) Transition(_ context.Context, actor store.User, id int64, ac
 }
 func (f *fakeStore) DashboardData(context.Context, time.Time, time.Time) ([]store.DashboardRow, []store.DashboardRow, error) {
 	return f.today, f.active, nil
+}
+func (f *fakeStore) QueueSettings(context.Context) (store.QueueSettings, error) {
+	return store.DefaultQueueSettings(), nil
+}
+func (f *fakeStore) QueueStats(context.Context, time.Time) (map[string]flow.DeptStats, error) {
+	if f.statsErr != nil {
+		return nil, f.statsErr
+	}
+	return f.stats, nil
+}
+func (f *fakeStore) ChangeTriage(_ context.Context, _ store.User, id int64, esi int, reason string) (store.Visit, error) {
+	f.gotTriage = []any{id, esi, reason}
+	v := f.visits[0]
+	v.ESI = esi
+	return v, nil
+}
+func (f *fakeStore) TriageHistory(context.Context, int64) ([]store.TriageChange, error) {
+	return f.triage, nil
 }
 
 func (f *fakeStore) ReportRows(_ context.Context, since, until time.Time) ([]store.ReportRow, error) {

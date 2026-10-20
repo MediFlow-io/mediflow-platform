@@ -89,3 +89,28 @@ func TestParseSchedule(t *testing.T) {
 		t.Error("23:30 UTC is 00:30 the next day in Lagos")
 	}
 }
+
+func TestScheduleWithPerDayHoursAndHolidays(t *testing.T) {
+	s := DefaultSchedule(lagos)
+	s.Hours[time.Friday] = Window{8 * time.Hour, 12 * time.Hour}
+	s.Holidays = map[string]string{"2026-10-15": "Founders Day"}
+	if s.Describe() != "Mon Tue Wed Thu, 08:00–16:00; Fri, 08:00–12:00" {
+		t.Fatalf("got %q", s.Describe())
+	}
+	at := func(day, h, m int) time.Time { return time.Date(2026, 10, day, h, m, 0, 0, lagos) }
+	if msg := s.Validate(at(16, 13, 0), tue); msg == "" {
+		t.Error("Friday afternoon is closed")
+	}
+	if msg := s.Validate(at(16, 11, 45), tue); msg != "" {
+		t.Errorf("Friday morning is open: %q", msg)
+	}
+	if msg := s.Validate(at(15, 9, 0), tue); msg != "The clinic is closed on Thu 15 Oct (Founders Day)." {
+		t.Errorf("holiday: %q", msg)
+	}
+	if (Schedule{Loc: lagos}).Describe() != "no hours set" {
+		t.Error("empty schedule")
+	}
+	if d, err := ParseClock("08:30:00"); err != nil || d != 8*time.Hour+30*time.Minute {
+		t.Errorf("ParseClock: %v %v", d, err)
+	}
+}

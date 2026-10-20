@@ -89,3 +89,15 @@ class Appointment(models.Model):
     class Meta:
         ordering = ("scheduled_for",)
         indexes = [models.Index(fields=["status", "scheduled_for"])]
+
+class TriageChange(models.Model):
+    """Every change to a visit's ESI after check-in: escalation, de-escalation or an edit.
+    Written by the Go patient-flow service (ADR-0002); schema owned here. The reason is clinical text,
+    so it lives here and never in the audit log (which records only the from/to levels)."""
+    visit = models.ForeignKey(Visit, related_name="triage_changes", on_delete=models.CASCADE)
+    from_esi = models.PositiveSmallIntegerField()
+    to_esi = models.PositiveSmallIntegerField()
+    reason = models.TextField(blank=True, default="")
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    changed_at = models.DateTimeField()
+    class Meta: ordering = ("changed_at",)
