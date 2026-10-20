@@ -6,6 +6,7 @@ import react from "@vitejs/plugin-react";
 const GATEWAY = process.env.MEDIFLOW_GATEWAY ?? "http://localhost:8080";
 const API = process.env.MEDIFLOW_API ?? "http://localhost:8000";
 const FLOW = process.env.MEDIFLOW_FLOW ?? "http://localhost:8090"; // Go patient-flow service
+const NOTIFY = process.env.MEDIFLOW_NOTIFY ?? "http://localhost:8095"; // Flask notification service
 
 export default defineConfig({
   plugins: [react()],
@@ -18,6 +19,7 @@ export default defineConfig({
       "/api/dashboard": { target: FLOW, changeOrigin: true },
       "/api/reports": { target: FLOW, changeOrigin: true },
       "/api/appointments": { target: FLOW, changeOrigin: true },
+      "/api/notifications": { target: NOTIFY, changeOrigin: true },
       "/api": { target: API, changeOrigin: true },
     },
   },

@@ -193,4 +193,8 @@ export const mediflowApi = {
   appointments: (params) => request(`/api/appointments${qs(params)}`),
   bookAppointment: (payload) => request("/api/appointments", { method: "POST", body: payload }),
   appointmentAction: (id, action, body = {}) => request(`/api/appointments/${id}/${action}`, { method: "POST", body }),
+  notifications: (params) => request(`/api/notifications${qs(params)}`),
+  unreadNotifications: () => request("/api/notifications/unread-count"),
+  markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: "POST" }),
+  markAllNotificationsRead: () => request("/api/notifications/read-all", { method: "POST" }),
 };
