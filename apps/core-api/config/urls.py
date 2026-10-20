@@ -17,7 +17,11 @@ from apps.accounts.views import (
 )
 from apps.patients.views import DepartmentViewSet, PatientViewSet
 from apps.operations.views import HealthView
-from apps.ai.views import AskView, TriageSuggestView
+from apps.operations.audit_api import AuditLogListView
+from apps.ai.views import AskView, InsightsView, RiskScoreView, TriageSuggestView
+from apps.clinic import views as clinic
+from apps.emr import views as emr
+from apps.accounts import mfa_views
 
 router = DefaultRouter()
 router.trailing_slash = ""  # Existing MediFlow frontend calls /api/patients, not /api/patients/.
@@ -39,10 +43,41 @@ urlpatterns = [
     path("api/auth/register/student", StudentRegisterView.as_view()), path("api/auth/register/student/", StudentRegisterView.as_view()),
     path("api/auth/register/staff", StaffRegisterView.as_view()), path("api/auth/register/staff/", StaffRegisterView.as_view()),
     path("api/auth/token/refresh", TokenRefreshView.as_view()), path("api/auth/token/refresh/", TokenRefreshView.as_view()),
+    path("api/auth/mfa/verify", mfa_views.MfaVerifyView.as_view()), path("api/auth/mfa/verify/", mfa_views.MfaVerifyView.as_view()),
+    path("api/auth/mfa/status", mfa_views.MfaStatusView.as_view()), path("api/auth/mfa/status/", mfa_views.MfaStatusView.as_view()),
+    path("api/auth/mfa/setup", mfa_views.MfaSetupView.as_view()), path("api/auth/mfa/setup/", mfa_views.MfaSetupView.as_view()),
+    path("api/auth/mfa/confirm", mfa_views.MfaConfirmView.as_view()), path("api/auth/mfa/confirm/", mfa_views.MfaConfirmView.as_view()),
+    path("api/auth/mfa/disable", mfa_views.MfaDisableView.as_view()), path("api/auth/mfa/disable/", mfa_views.MfaDisableView.as_view()),
+    path("api/users/<int:pk>/reset-mfa", mfa_views.MfaResetView.as_view()),
     path("api/auth/jwks", JwksView.as_view()), path(".well-known/jwks.json", JwksView.as_view()),
     path("api/auth/change-password", ChangePasswordView.as_view()), path("api/auth/change-password/", ChangePasswordView.as_view()),
     path("api/health", HealthView.as_view()),
+    # Prometheus metrics at /metrics. Not routed by the public Nginx (only /api/* is), so internal only.
+    path("", include("django_prometheus.urls")),
+    path("api/audit-logs", AuditLogListView.as_view()), path("api/audit-logs/", AuditLogListView.as_view()),
     path("api/ai/ask", AskView.as_view()), path("api/ai/ask/", AskView.as_view()),
     path("api/ai/triage", TriageSuggestView.as_view()), path("api/ai/triage/", TriageSuggestView.as_view()),
+    path("api/ai/risk-score", RiskScoreView.as_view()), path("api/ai/risk-score/", RiskScoreView.as_view()),
+    path("api/ai/insights", InsightsView.as_view()), path("api/ai/insights/", InsightsView.as_view()),
+    # Clinic settings: read by everyone signed in, changed by admins (edited from the Laravel console).
+    path("api/clinic/settings", clinic.ClinicSettingsView.as_view()),
+    path("api/clinic/queue-settings", clinic.QueueSettingsView.as_view()),
+    path("api/clinic/hours", clinic.HoursView.as_view()),
+    path("api/clinic/holidays", clinic.HolidayListView.as_view()),
+    path("api/clinic/holidays/<int:pk>", clinic.HolidayDetailView.as_view()),
+    path("api/clinic/shifts", clinic.ShiftListView.as_view()),
+    path("api/clinic/shifts/<int:pk>", clinic.ShiftDetailView.as_view()),
+    # EMR Lite (clinical records). Not under /api/visits, which is the Go service's.
+    path("api/emr/visits/<int:visit_id>", emr.VisitRecordView.as_view()),
+    path("api/emr/visits/<int:visit_id>/consultation", emr.ConsultationView.as_view()),
+    path("api/emr/visits/<int:visit_id>/diagnoses", emr.DiagnosisCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/prescriptions", emr.PrescriptionCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/referrals", emr.ReferralCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/<str:action>", emr.AdmissionView.as_view()),
+    path("api/emr/diagnoses/<int:pk>/entered-in-error", emr.DiagnosisErrorView.as_view()),
+    path("api/emr/prescriptions", emr.PrescriptionListView.as_view()),
+    path("api/emr/prescriptions/<int:pk>/<str:action>", emr.PrescriptionActionView.as_view()),
+    path("api/emr/patients/<int:patient_id>/history", emr.PatientHistoryView.as_view()),
+    path("api/me/medications", emr.MyMedicationsView.as_view()),
     path("api/", include(router.urls)),
 ]

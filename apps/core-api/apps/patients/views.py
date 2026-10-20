@@ -47,3 +47,9 @@ class DepartmentViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentSerializer
     def get_permissions(self):
         return [permissions.IsAuthenticated()] if self.request.method in permissions.SAFE_METHODS else [IsAdmin()]
+    def perform_create(self, serializer):
+        department = serializer.save()
+        record(self.request.user, "department.created", "department", department.pk, code=department.code)
+    def perform_update(self, serializer):
+        department = serializer.save()
+        record(self.request.user, "department.updated", "department", department.pk, fields=sorted(serializer.validated_data), active=department.active)

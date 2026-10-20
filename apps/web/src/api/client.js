@@ -118,6 +118,13 @@ export const authApi = {
 
   me: () => request("/api/me"),
 
+  // Two-step sign-in (authenticator app).
+  verifyMfa: (mfa_token, code) => request("/api/auth/mfa/verify", { method: "POST", body: { mfa_token, code }, auth: false }),
+  mfaStatus: () => request("/api/auth/mfa/status"),
+  mfaSetup: () => request("/api/auth/mfa/setup", { method: "POST" }),
+  mfaConfirm: (code) => request("/api/auth/mfa/confirm", { method: "POST", body: { code } }),
+  mfaDisable: (password, code) => request("/api/auth/mfa/disable", { method: "POST", body: { password, code } }),
+
   // The server revokes all refresh tokens on a password change and returns a new pair.
   changePassword: async (payload) => {
     const data = await request("/api/auth/change-password", { method: "POST", body: payload });
@@ -125,6 +132,51 @@ export const authApi = {
     return data;
   },
 };
+
+/**
+ * Read a server-sent event stream with the bearer token in a header (EventSource can't send headers,
+ * and tokens must never go in URLs, where proxies log them). Calls onEvent(name, data) per event and
+ * onOpen() once connected. Resolves when the stream ends; rejects on errors. Abort with `signal`.
+ */
+export async function streamEvents(path, { onEvent, onOpen, signal, retried = false }) {
+  const token = getAccessToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    headers: { Accept: "text/event-stream", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    signal,
+  });
+  if (res.status === 401 && !retried && (await refreshAccessToken())) {
+    return streamEvents(path, { onEvent, onOpen, signal, retried: true });
+  }
+  if (!res.ok || !res.body) throw new ApiError(`Live updates unavailable (${res.status}).`, res.status, null);
+  onOpen?.();
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) return;
+    buffer += value;
+    let end;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const block = buffer.slice(0, end);
+      buffer = buffer.slice(end + 2);
+      let name = "message";
+      const data = [];
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event:")) name = line.slice(6).trim();
+        else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+      } // lines starting with ":" are keep-alive comments
+      if (data.length) {
+        let parsed = data.join("\n");
+        try {
+          parsed = JSON.parse(parsed);
+        } catch {
+          // non-JSON payloads are passed through as text
+        }
+        onEvent(name, parsed);
+      }
+    }
+  }
+}
 
 const qs = (params) => {
   const entries = Object.entries(params || {}).filter(([, v]) => v !== undefined && v !== null && v !== "");
@@ -144,5 +196,30 @@ export const mediflowApi = {
   updatePatient: (id, payload) => request(`/api/patients/${id}`, { method: "PATCH", body: payload }),
   users: (params) => request(`/api/users${qs(params)}`),
   updateUser: (id, payload) => request(`/api/users/${id}`, { method: "PATCH", body: payload }),
+  resetMfa: (id) => request(`/api/users/${id}/reset-mfa`, { method: "POST" }),
   triageSuggestion: (payload) => request("/api/ai/triage", { method: "POST", body: payload }),
+  riskScore: (payload) => request("/api/ai/risk-score", { method: "POST", body: payload }),
+  appointments: (params) => request(`/api/appointments${qs(params)}`),
+  bookAppointment: (payload) => request("/api/appointments", { method: "POST", body: payload }),
+  appointmentAction: (id, action, body = {}) => request(`/api/appointments/${id}/${action}`, { method: "POST", body }),
+  changeTriage: (id, payload) => request(`/api/visits/${id}/triage`, { method: "POST", body: payload }),
+  triageHistory: (id) => request(`/api/visits/${id}/triage`),
+  myQueue: () => request("/api/queue/me"),
+  visitRecord: (visitId) => request(`/api/emr/visits/${visitId}`),
+  saveConsultation: (visitId, notes) => request(`/api/emr/visits/${visitId}/consultation`, { method: "PUT", body: { notes } }),
+  addDiagnosis: (visitId, body) => request(`/api/emr/visits/${visitId}/diagnoses`, { method: "POST", body }),
+  diagnosisInError: (id) => request(`/api/emr/diagnoses/${id}/entered-in-error`, { method: "POST" }),
+  addPrescription: (visitId, body) => request(`/api/emr/visits/${visitId}/prescriptions`, { method: "POST", body }),
+  prescriptions: (status) => request(`/api/emr/prescriptions${qs({ status })}`),
+  prescriptionAction: (id, action, body = {}) => request(`/api/emr/prescriptions/${id}/${action}`, { method: "POST", body }),
+  addReferral: (visitId, body) => request(`/api/emr/visits/${visitId}/referrals`, { method: "POST", body }),
+  admit: (visitId, ward) => request(`/api/emr/visits/${visitId}/admission`, { method: "POST", body: { ward } }),
+  discharge: (visitId, summary) => request(`/api/emr/visits/${visitId}/discharge`, { method: "POST", body: { summary } }),
+  patientHistory: (patientId) => request(`/api/emr/patients/${patientId}/history`),
+  notifications: (params) => request(`/api/notifications${qs(params)}`),
+  unreadNotifications: () => request("/api/notifications/unread-count"),
+  markNotificationRead: (id) => request(`/api/notifications/${id}/read`, { method: "POST" }),
+  notificationPreferences: () => request("/api/notifications/preferences"),
+  setNotificationPreferences: (body) => request("/api/notifications/preferences", { method: "PUT", body }),
+  markAllNotificationsRead: () => request("/api/notifications/read-all", { method: "POST" }),
 };

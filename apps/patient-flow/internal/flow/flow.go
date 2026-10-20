@@ -85,6 +85,9 @@ func CanCheckIn(role string) bool      { return checkIn[role] }
 func CanEditVisit(role string) bool    { return editVisits[role] }
 func CanSeeDashboard(role string) bool { return staff[role] }
 
+// CanSeeReports: multi-day flow reports are for administrators (the admin console).
+func CanSeeReports(role string) bool { return role == Admin }
+
 // Transition describes one lifecycle action.
 type Transition struct {
 	Action    string

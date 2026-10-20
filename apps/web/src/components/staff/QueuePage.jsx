@@ -1,20 +1,31 @@
-import { useState } from "react";
+import { Fragment, useRef, useState } from "react";
 import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
-import { actionsFor } from "../../lib/roles";
-import { Empty, ErrorBox, EsiBadge, Loading, PageHeader, StatusBadge, formatTime } from "../ui";
+import { useQueueEvents } from "../../hooks/useQueueEvents";
+import { actionsFor, can } from "../../lib/roles";
+import TriageForm from "./TriageForm";
+import VisitRecord from "./VisitRecord";
+import { Empty, ErrorBox, EsiBadge, LiveBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals } from "../ui";
 
 export default function QueuePage() {
   const { user } = useAuth();
   const [department, setDepartment] = useState("");
   const departments = useApi(() => mediflowApi.departments(), []);
   // Waiting patients come from the ordered queue; called/in-consultation from today's visits.
-  const queue = useApi(() => mediflowApi.queue(department), [department], { refreshMs: 15000 });
-  const active = useApi(() => mediflowApi.visits({ status: "called,in_progress", department }), [department], { refreshMs: 15000 });
+  // Live updates from the Go patient-flow service; polling is only a safety net while they're connected.
+  const reloaders = useRef([]);
+  const live = useQueueEvents(() => reloaders.current.forEach((reload) => reload()));
+  const refreshMs = live ? 60000 : 15000;
+  const queue = useApi(() => mediflowApi.queue(department), [department], { refreshMs });
+  const active = useApi(() => mediflowApi.visits({ status: "called,in_progress", department }), [department], { refreshMs });
+  reloaders.current = [queue.reload, active.reload];
   const [busy, setBusy] = useState(null);
   const deptName = (code) => (departments.data || []).find((d) => d.code === code)?.name ?? code;
   const [actionError, setActionError] = useState(null);
+  const [triageFor, setTriageFor] = useState(null);
+  const [recordFor, setRecordFor] = useState(null);
+  const [notice, setNotice] = useState(null);
 
   async function run(visitId, action) {
     if (action === "cancel" && !window.confirm("Cancel this visit? The patient leaves the queue.")) return;
@@ -45,7 +56,8 @@ export default function QueuePage() {
 
   return (
     <>
-      <PageHeader title="Queue" subtitle="Most urgent first (ESI), then by arrival. Updates every 15 seconds.">
+      <PageHeader title="Queue" subtitle="Most urgent first (ESI), then by arrival.">
+        <LiveBadge live={live} />
         <select aria-label="Department" value={department} onChange={(e) => setDepartment(e.target.value)}>
           <option value="">All departments</option>
           {(departments.data || []).filter((d) => d.active).map((d) => (
@@ -54,6 +66,7 @@ export default function QueuePage() {
         </select>
       </PageHeader>
       <ErrorBox error={actionError} />
+      {notice && <p className="notice" role="status">{notice}</p>}
 
       <section className="panel">
         <h2>With staff now</h2>
@@ -67,14 +80,33 @@ export default function QueuePage() {
             </thead>
             <tbody>
               {active.data.map((v) => (
-                <tr key={v.id}>
-                  <td><strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div></td>
+                <Fragment key={v.id}>
+                <tr>
+                  <td>
+                    <strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div>
+                    {v.chief_complaint && <div className="small">{v.chief_complaint}</div>}
+                    {formatVitals(v) && <div className="small muted">{formatVitals(v)}</div>}
+                  </td>
                   <td>{v.department_name}</td>
                   <td><StatusBadge status={v.status} /></td>
                   <td>{v.assigned_clinician_name || "—"}</td>
                   <td>{formatTime(v.started_at || v.called_at)}</td>
-                  <td className="actions">{buttons(v.id, v.status)}</td>
+                  <td className="actions">
+                    {can(user, "readRecord") && (
+                      <button type="button" className="btn btn-small btn-secondary" aria-expanded={recordFor === v.id}
+                        onClick={() => setRecordFor(recordFor === v.id ? null : v.id)}>
+                        {recordFor === v.id ? "Close record" : "Record"}
+                      </button>
+                    )}
+                    {buttons(v.id, v.status)}
+                  </td>
                 </tr>
+                {recordFor === v.id && (
+                  <tr className="row-form">
+                    <td colSpan={6} aria-label={`Clinical record for ${v.patient_name}`}><VisitRecord visitId={v.id} /></td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -89,19 +121,45 @@ export default function QueuePage() {
         {queue.data && queue.data.length > 0 && (
           <table className="table">
             <thead>
-              <tr><th>#</th><th>Patient</th><th>Priority</th><th>Department</th><th>Arrived</th><th>Waited</th><th /></tr>
+              <tr><th>#</th><th>Patient</th><th>Priority</th><th>Department</th><th>Arrived</th><th>Waited</th><th>Est. wait</th><th /></tr>
             </thead>
             <tbody>
               {queue.data.map((q) => (
-                <tr key={q.id} className={q.priority <= 2 ? "row-urgent" : undefined}>
+                <Fragment key={q.id}>
+                <tr className={q.priority <= 2 ? "row-urgent" : undefined}>
                   <td>{q.position}</td>
-                  <td><strong>{q.fullName}</strong><div className="mono small">{q.hospitalNumber}</div></td>
+                  <td>
+                    <strong>{q.fullName}</strong><div className="mono small">{q.hospitalNumber}</div>
+                    {q.chiefComplaint && <div className="small muted">{q.chiefComplaint}</div>}
+                  </td>
                   <td><EsiBadge esi={q.priority} /></td>
                   <td>{deptName(q.department)}</td>
                   <td>{q.arrival}</td>
-                  <td className={q.waitingMinutes >= 60 ? "text-alert" : undefined}>{q.wait}</td>
-                  <td className="actions">{buttons(q.id, "waiting")}</td>
+                  <td className={q.overTarget ? "text-alert" : undefined}>
+                    {q.wait}
+                    {q.overTarget && <div className="small">over {q.targetMinutes} min target</div>}
+                  </td>
+                  <td>{estimate(q.estimatedWaitMinutes)}</td>
+                  <td className="actions">
+                    {can(user, "changeTriage") && (
+                      <button type="button" className="btn btn-small btn-secondary" disabled={busy !== null}
+                        onClick={() => { setNotice(null); setTriageFor(triageFor === q.id ? null : q.id); }}>
+                        Change ESI
+                      </button>
+                    )}
+                    {buttons(q.id, "waiting")}
+                  </td>
                 </tr>
+                {triageFor === q.id && (
+                  <tr className="row-form">
+                    <td colSpan={8}>
+                      <TriageForm visitId={q.id} current={q.priority} patientName={q.fullName}
+                        onCancel={() => setTriageFor(null)}
+                        onDone={(message) => { setTriageFor(null); setNotice(message); queue.reload(); }} />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -109,4 +167,11 @@ export default function QueuePage() {
       </section>
     </>
   );
+}
+
+// A rough guide from the queue engine: people ahead × recent consultation time ÷ clinicians working.
+function estimate(minutes) {
+  if (minutes === null || minutes === undefined) return "—";
+  if (minutes === 0) return "Next";
+  return `~${minutes} min`;
 }

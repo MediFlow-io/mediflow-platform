@@ -24,6 +24,14 @@ class Patient(models.Model):
     diagnosis = models.TextField(blank=True)
     treatment = models.TextField(blank=True)
     notes = models.TextField(blank=True)
+    class PaymentCategory(models.TextChoices):
+        STUDENT = "student", "Student (school fees)"; STAFF = "staff", "Staff"; INSURANCE = "insurance", "Health insurance (NHIA/HMO)"
+        CASH = "cash", "Self-pay"; OTHER = "other", "Other"
+    # Database defaults too, so other services' inserts (Go, tests) keep working without these columns.
+    payment_category = models.CharField(max_length=10, choices=PaymentCategory.choices, default=PaymentCategory.STUDENT, db_default=PaymentCategory.STUDENT)
+    insurance_number = models.CharField(max_length=40, blank=True, default="", db_default="")
+    # Long-term conditions as a list of short names, e.g. ["Asthma", "Sickle cell disease"].
+    chronic_conditions = models.JSONField(default=list, blank=True, db_default=models.Value([], output_field=models.JSONField()))
     # Optional login account (e.g. a student) that may view this record via /api/me/health.
     user = models.OneToOneField(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="patient_record")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -46,6 +54,15 @@ class Visit(models.Model):
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     assigned_clinician = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="assigned_visits")
+    # Triage observations recorded at check-in (written by the Go patient-flow service; schema owned here).
+    chief_complaint = models.TextField(blank=True, default="")
+    pain_score = models.PositiveSmallIntegerField(null=True, blank=True)
+    heart_rate = models.PositiveSmallIntegerField(null=True, blank=True)      # beats/min
+    resp_rate = models.PositiveSmallIntegerField(null=True, blank=True)       # breaths/min
+    spo2 = models.PositiveSmallIntegerField(null=True, blank=True)            # %
+    temperature_c = models.DecimalField(max_digits=4, decimal_places=1, null=True, blank=True)
+    systolic_bp = models.PositiveSmallIntegerField(null=True, blank=True)     # mmHg
+    avpu = models.CharField(max_length=1, blank=True, default="")             # A, V, P or U
     ACTIVE_STATUSES = (Status.WAITING, Status.CALLED, Status.IN_PROGRESS)
     class Meta: ordering = ("esi", "checked_in_at")
     def save(self, *args, **kwargs):
@@ -54,3 +71,41 @@ class Visit(models.Model):
     def clean(self):
         from django.core.exceptions import ValidationError
         if not 1 <= self.esi <= 5: raise ValidationError({"esi": "ESI must be from 1 (most urgent) to 5."})
+
+class Appointment(models.Model):
+    """A booked or requested clinic slot. Written by the Go patient-flow service (ADR-0002); schema owned here.
+
+    requested ──confirm──▶ confirmed ──check-in──▶ checked_in (a Visit is created)
+        │──decline──▶ declined        │
+        └────────────cancel───────────┴──▶ cancelled
+    """
+    class Status(models.TextChoices):
+        REQUESTED = "requested", "Requested"; CONFIRMED = "confirmed", "Confirmed"; DECLINED = "declined", "Declined"
+        CANCELLED = "cancelled", "Cancelled"; CHECKED_IN = "checked_in", "Checked in"
+    reference = models.CharField(max_length=12, unique=True)
+    patient = models.ForeignKey(Patient, related_name="appointments", on_delete=models.PROTECT)
+    department = models.ForeignKey(Department, related_name="appointments", on_delete=models.PROTECT)
+    scheduled_for = models.DateTimeField()
+    reason = models.TextField(blank=True, default="")
+    status = models.CharField(max_length=16, choices=Status.choices, default=Status.REQUESTED)
+    staff_note = models.TextField(blank=True, default="")  # shown to the patient, e.g. why a request was declined
+    requested_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointments_requested")
+    handled_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointments_handled")
+    visit = models.OneToOneField(Visit, null=True, blank=True, on_delete=models.SET_NULL, related_name="appointment")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    class Meta:
+        ordering = ("scheduled_for",)
+        indexes = [models.Index(fields=["status", "scheduled_for"])]
+
+class TriageChange(models.Model):
+    """Every change to a visit's ESI after check-in: escalation, de-escalation or an edit.
+    Written by the Go patient-flow service (ADR-0002); schema owned here. The reason is clinical text,
+    so it lives here and never in the audit log (which records only the from/to levels)."""
+    visit = models.ForeignKey(Visit, related_name="triage_changes", on_delete=models.CASCADE)
+    from_esi = models.PositiveSmallIntegerField()
+    to_esi = models.PositiveSmallIntegerField()
+    reason = models.TextField(blank=True, default="")
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    changed_at = models.DateTimeField()
+    class Meta: ordering = ("changed_at",)

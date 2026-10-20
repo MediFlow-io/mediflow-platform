@@ -17,7 +17,8 @@ from config.jwt_keys import public_jwk
 
 from .models import User
 from .permissions import STAFF_ROLES, IsAdmin
-from .throttles import LoginRateThrottle, RegisterRateThrottle
+from . import mfa
+from .throttles import LoginRateThrottle, RefreshRateThrottle, RegisterRateThrottle
 from .serializers import UserSerializer
 
 
@@ -102,10 +103,18 @@ class LoginView(APIView):
             record(None, "auth.login_failed", "user", username)
             return Response({"detail": "Invalid credentials."}, status=401)
 
+        if mfa.enabled_for(user):
+            # Password is right; tokens only after the authenticator code (POST /api/auth/mfa/verify).
+            record(user, "auth.mfa_challenged", "user", user.id)
+            return Response({"mfa_required": True, "mfa_token": mfa.challenge_for(user),
+                             "detail": "Enter the 6-digit code from your authenticator app."})
+
         login(request, user)
         record(user, "auth.login", "user", user.id)
         payload = user_response(user)
         payload.update({"message": "Login successful", **issue_tokens(user)})
+        if mfa.required_for(user):
+            payload["mfa_setup_required"] = True
         return Response(payload)
 
 
@@ -146,7 +155,7 @@ class MyHealthView(APIView):
 
         patient = Patient.objects.filter(user=request.user).first()
         if patient is None:
-            return Response({"linked": False, "patient": None, "activeVisit": None, "visits": []})
+            return Response({"linked": False, "patient": None, "activeVisit": None, "latestVitals": None, "visits": []})
 
         record(request.user, "patient.self_viewed", "patient", patient.pk)
         visits = list(patient.visits.select_related("department", "assigned_clinician").order_by("-checked_in_at")[:20])
@@ -168,6 +177,17 @@ class MyHealthView(APIView):
                 "patientsAhead": ahead,
             }
 
+        # Latest vital signs taken at a check-in (numbers only; the complaint text stays with staff).
+        measured = next((v for v in visits if any(getattr(v, f) is not None for f in
+                         ("heart_rate", "resp_rate", "spo2", "temperature_c", "systolic_bp", "pain_score"))), None)
+        latest_vitals = None
+        if measured:
+            latest_vitals = {
+                "recordedAt": measured.checked_in_at, "heartRate": measured.heart_rate, "respRate": measured.resp_rate,
+                "spo2": measured.spo2, "temperatureC": float(measured.temperature_c) if measured.temperature_c is not None else None,
+                "systolicBp": measured.systolic_bp, "painScore": measured.pain_score,
+            }
+
         def clinician(visit):
             user = visit.assigned_clinician
             return (user.display_name or user.username) if user else None
@@ -181,6 +201,7 @@ class MyHealthView(APIView):
                 "nextOfKinPhone": patient.next_of_kin_phone,
             },
             "activeVisit": active_payload,
+            "latestVitals": latest_vitals,
             "visits": [{"visitNumber": v.visit_number, "checkedInAt": v.checked_in_at, "department": v.department.name,
                         "status": v.status, "clinician": clinician(v), "completedAt": v.completed_at} for v in visits],
         })
@@ -291,6 +312,7 @@ class StaffRegisterView(APIView):
 class TokenRefreshView(APIView):
     """Rotates the refresh token: the presented one is revoked and a fresh pair is returned."""
     permission_classes = [permissions.AllowAny]
+    throttle_classes = [RefreshRateThrottle]
     authentication_classes = []
 
     def post(self, request):

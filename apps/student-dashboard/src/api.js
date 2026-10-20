@@ -51,7 +51,9 @@ async function request(path, { method = "GET", body, auth = true, retried = fals
   }
   const data = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(data?.detail || `Something went wrong (${res.status}).`, res.status);
+    // Field errors look like {"time": ["The clinic takes appointments Mon-Fri..."]}: show the messages.
+    const fieldMessages = data && typeof data === "object" && !data.detail ? Object.values(data).flat().join(" ") : "";
+    throw new ApiError(data?.detail || fieldMessages || `Something went wrong (${res.status}).`, res.status);
   }
   return data;
 }
@@ -72,3 +74,17 @@ export async function signOut() {
 
 export const getMe = () => request("/api/me");
 export const getMyHealth = () => request("/api/me/health");
+export const getMyAppointments = () => request("/api/appointments/mine");
+// Queue position and a rough wait estimate, from the Go patient-flow service.
+export const getMyQueue = () => request("/api/queue/me");
+export const getMyMedications = () => request("/api/me/medications");
+export const getDepartments = () => request("/api/departments");
+export const requestAppointment = (body) => request("/api/appointments", { method: "POST", body });
+export const cancelAppointment = (id) => request(`/api/appointments/${id}/cancel`, { method: "POST" });
+
+// Notifications come from the Flask notification service.
+export const getNotifications = () => request("/api/notifications?limit=50");
+export const markNotificationRead = (id) => request(`/api/notifications/${id}/read`, { method: "POST" });
+export const markAllNotificationsRead = () => request("/api/notifications/read-all", { method: "POST" });
+export const getNotificationPreferences = () => request("/api/notifications/preferences");
+export const setNotificationPreferences = (body) => request("/api/notifications/preferences", { method: "PUT", body });

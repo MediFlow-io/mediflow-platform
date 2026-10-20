@@ -21,6 +21,7 @@ import (
 	"mediflow/patient-flow/internal/api"
 	"mediflow/patient-flow/internal/auth"
 	"mediflow/patient-flow/internal/events"
+	"mediflow/patient-flow/internal/flow"
 	"mediflow/patient-flow/internal/store"
 )
 
@@ -76,14 +77,19 @@ func run(log *slog.Logger) error {
 	hub := events.NewHub()
 	go events.Listen(ctx, pool, store.NotifyChannel, hub, log)
 
+	schedule, err := flow.ParseSchedule(loc, os.Getenv("CLINIC_HOURS"), os.Getenv("CLINIC_DAYS"))
+	if err != nil {
+		return err
+	}
 	httpClient := &http.Client{Timeout: 10 * time.Second}
 	server := &api.Server{
-		Store:  store.New(pool),
-		Tokens: auth.NewVerifier(env("JWKS_URL", "http://localhost:8000/api/auth/jwks"), env("JWT_ISSUER", "mediflow-core"), env("JWT_AUDIENCE", "mediflow"), httpClient),
-		Hub:    hub,
-		Loc:    loc,
-		Log:    log,
-		Now:    time.Now,
+		Store:    store.New(pool),
+		Tokens:   auth.NewVerifier(env("JWKS_URL", "http://localhost:8000/api/auth/jwks"), env("JWT_ISSUER", "mediflow-core"), env("JWT_AUDIENCE", "mediflow"), httpClient),
+		Hub:      hub,
+		Loc:      loc,
+		Log:      log,
+		Now:      time.Now,
+		Schedule: schedule,
 	}
 	srv := &http.Server{
 		Addr:              ":" + env("PORT", "8090"),
@@ -96,7 +102,7 @@ func run(log *slog.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		log.Info("listening", "addr", srv.Addr, "time_zone", loc.String())
+		log.Info("listening", "addr", srv.Addr, "time_zone", loc.String(), "appointments", schedule.Describe())
 		errCh <- srv.ListenAndServe()
 	}()
 	select {

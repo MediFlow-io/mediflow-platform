@@ -21,3 +21,11 @@ class RegisterRateThrottle(SimpleRateThrottle):
 
     def get_cache_key(self, request, view):
         return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}
+
+
+class RefreshRateThrottle(SimpleRateThrottle):
+    """Limits token refreshes per client IP (a stolen refresh token can't be hammered)."""
+    scope = "refresh"
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {"scope": self.scope, "ident": self.get_ident(request)}

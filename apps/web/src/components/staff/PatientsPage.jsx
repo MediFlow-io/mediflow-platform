@@ -3,8 +3,10 @@ import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { can } from "../../lib/roles";
-import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime } from "../ui";
+import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
+import BookAppointmentForm from "./BookAppointmentForm";
 import CheckInForm from "./CheckInForm";
+import ClinicalHistory from "./ClinicalHistory";
 import PatientForm from "./PatientForm";
 
 function useDebounced(value, ms = 300) {
@@ -97,6 +99,10 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
   const p = patient.data;
   const activeVisit = (visits.data || []).find((v) => ["waiting", "called", "in_progress"].includes(v.status));
 
+  if (mode === "book") {
+    return <BookAppointmentForm patient={p} onCancel={() => onMode("view")}
+      onDone={(a) => onSaved(`Appointment booked for ${p.fullName}: ${a.date} at ${a.time} (${a.department_name}).`)} />;
+  }
   if (mode === "checkin") {
     return <CheckInForm patient={p} onCancel={() => onMode("view")}
       onDone={(v) => onSaved(`${p.fullName} checked in to ${v.department_name} (ESI ${v.esi}).`)} />;
@@ -113,6 +119,9 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
           {can(user, "checkIn") && !activeVisit && (
             <button type="button" className="btn" onClick={() => onMode("checkin")}>Check in</button>
           )}
+          {can(user, "manageAppointments") && (
+            <button type="button" className="btn btn-secondary" onClick={() => onMode("book")}>Book appointment</button>
+          )}
           {canEdit && !editing && <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>Edit</button>}
         </div>
       </div>
@@ -126,18 +135,26 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
         onCancel={() => setEditing(false)}
         onSaved={() => { setEditing(false); patient.reload(); onSaved(`${p.fullName}'s record was updated.`); }} />
 
+      {can(user, "readRecord") && (
+        <>
+          <h3>Clinical history</h3>
+          <ClinicalHistory patientId={p.id} />
+        </>
+      )}
+
       <h3>Visits</h3>
       <ErrorBox error={visits.error} onRetry={visits.reload} />
       {visits.data && visits.data.length === 0 && <Empty>No visits yet.</Empty>}
       {visits.data && visits.data.length > 0 && (
         <table className="table">
-          <thead><tr><th>Date</th><th>Department</th><th>ESI</th><th>Status</th><th>Clinician</th></tr></thead>
+          <thead><tr><th>Date</th><th>Department</th><th>ESI</th><th>Complaint / observations</th><th>Status</th><th>Clinician</th></tr></thead>
           <tbody>
             {[...visits.data].sort((a, b) => b.checked_in_at.localeCompare(a.checked_in_at)).map((v) => (
               <tr key={v.id}>
                 <td>{formatDate(v.checked_in_at)} {formatTime(v.checked_in_at)}</td>
                 <td>{v.department_name}</td>
                 <td>{v.esi}</td>
+                <td>{v.chief_complaint || "—"}{formatVitals(v) && <div className="small muted">{formatVitals(v)}</div>}</td>
                 <td><StatusBadge status={v.status} /></td>
                 <td>{v.assigned_clinician_name || "—"}</td>
               </tr>

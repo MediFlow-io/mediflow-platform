@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info } from "lucide-react";
-import { getMe, getMyHealth, isSignedIn, signIn, signOut } from "./api";
+import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
+import {
+  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyMedications, getMyQueue, getNotificationPreferences,
+  getNotifications, isSignedIn, setNotificationPreferences,
+  markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
+} from "./api";
 
 // Mediflow palette
 const C = {
@@ -27,7 +31,84 @@ const nav = [
   { id: "history", label: "Visit history", icon: ClipboardList },
   { id: "vaccines", label: "Vaccines", icon: Syringe },
   { id: "meds", label: "Medications", icon: Pill },
+  { id: "notifications", label: "Notifications", icon: Bell },
 ];
+// Where a notification's `link` takes you.
+const LINK_TAB = { home: "home", appointments: "appts" };
+
+function ago(d) {
+  const minutes = Math.round((Date.now() - new Date(d).getTime()) / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} min ago`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)} h ago`;
+  return fmt(d);
+}
+
+function NotificationItem({ n, onOpen, compact }) {
+  return (
+    <button onClick={() => onOpen(n)} className={`w-full text-left rounded-2xl ${compact ? "p-3" : "p-4"} flex gap-3`}
+      style={{ background: n.readAt ? "#fff" : C.mist, border: `1px solid ${n.readAt ? C.line : "transparent"}` }}>
+      <span className="mt-1.5 w-2 h-2 rounded-full shrink-0" style={{ background: n.readAt ? "transparent" : C.cobalt }} aria-hidden="true" />
+      <span className="grid gap-0.5">
+        <span className="text-sm font-semibold" style={{ color: C.ink }}>{n.title}</span>
+        <span className="text-sm">{n.body}</span>
+        <span className="text-xs" style={{ color: "#5B6F8F" }}>{ago(n.createdAt)}{n.readAt ? "" : " · new"}</span>
+      </span>
+    </button>
+  );
+}
+
+function DeliveryPreferences() {
+  const [prefs, setPrefs] = useState(null);
+  const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    getNotificationPreferences().then(setPrefs, () => setPrefs(null));
+  }, []);
+  if (!prefs) return null;
+  async function toggle(channel) {
+    const before = prefs;
+    setPrefs({ ...prefs, [channel]: !prefs[channel] }); // show the change at once; undo it if saving fails
+    setSaving(true);
+    try {
+      setPrefs(await setNotificationPreferences({ [channel]: !before[channel] }));
+    } catch {
+      setPrefs(before);
+    } finally {
+      setSaving(false);
+    }
+  }
+  return (
+    <fieldset className="mt-5 pt-4 grid gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+      <legend className="text-sm font-semibold" style={{ color: C.ink }}>Also tell me by</legend>
+      {[["email", "Email"], ["sms", "SMS"]].map(([channel, label]) => (
+        <label key={channel} className="flex items-center gap-2 text-sm">
+          <input type="checkbox" checked={prefs[channel]} disabled={saving} onChange={() => toggle(channel)} /> {label}
+        </label>
+      ))}
+      <p className="text-xs" style={{ color: "#5B6F8F" }}>
+        Emails and texts only say you have a new notification. The details stay in this app.
+      </p>
+    </fieldset>
+  );
+}
+
+function Notifications({ data, failed, onOpen, onReadAll }) {
+  return (
+    <Card title="Notifications" right={data?.unread > 0 && (
+      <button onClick={onReadAll} className="text-sm font-medium" style={{ color: C.cobalt }}>Mark all read</button>
+    )}>
+      {failed && <Note>Notifications can't be loaded right now. Your queue position and appointments are still up to date.</Note>}
+      {!failed && !data && <p className="text-sm" role="status">Loading…</p>}
+      {data && data.results.length === 0 && <p className="text-sm">No notifications yet. We'll tell you here when you're called or an appointment changes.</p>}
+      {data && data.results.length > 0 && (
+        <ul className="grid gap-2" aria-label="Notifications">
+          {data.results.map((n) => <li key={n.id}><NotificationItem n={n} onOpen={onOpen} /></li>)}
+        </ul>
+      )}
+      <DeliveryPreferences />
+    </Card>
+  );
+}
 
 function Logo({ light }) {
   return (
@@ -65,7 +146,7 @@ function Note({ children }) {
   );
 }
 
-function CareJourney({ visit }) {
+function CareJourney({ visit, estimate }) {
   const stage = visit ? stageOf[visit.status] : -1;
   let headline = "No active visit";
   let detail = "Walk in to the health centre and reception will check you in. You can then follow your place here.";
@@ -74,6 +155,7 @@ function CareJourney({ visit }) {
     detail = visit.patientsAhead === 0
       ? `You're next in ${visit.department}. Please stay nearby.`
       : `${visit.patientsAhead} ${visit.patientsAhead === 1 ? "person is" : "people are"} ahead of you in ${visit.department}. More urgent cases are seen first.`;
+    if (visit.patientsAhead > 0 && estimate > 0) detail += ` Roughly ${estimate} min, but this can change.`;
   } else if (visit?.status === "called") {
     headline = "You've been called";
     detail = `Please go to ${visit.department} now.`;
@@ -121,13 +203,41 @@ function CareJourney({ visit }) {
 
 const splitList = (text) => (text || "").split(/[,;\n]/).map((s) => s.trim()).filter(Boolean);
 
-function Home({ health, go }) {
-  const { patient, activeVisit, visits } = health;
+function LatestVitals({ vitals }) {
+  const items = vitals ? [
+    ["Heart rate", vitals.heartRate, "bpm"],
+    ["Temperature", vitals.temperatureC, "°C"],
+    ["Oxygen (SpO₂)", vitals.spo2, "%"],
+    ["Breathing rate", vitals.respRate, "/min"],
+    ["Blood pressure (systolic)", vitals.systolicBp, "mmHg"],
+    ["Pain", vitals.painScore, "/10"],
+  ].filter(([, value]) => value !== null && value !== undefined) : [];
+  return (
+    <Card title="Last recorded vitals" right={vitals && <span className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(vitals.recordedAt)}</span>}>
+      {items.length === 0 ? (
+        <p className="text-sm" style={{ color: "#5B6F8F" }}>No vital signs recorded yet. The nurse records them when you check in.</p>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {items.map(([label, value, unit]) => (
+            <div key={label} className="rounded-2xl p-4" style={{ background: C.mist }}>
+              <div className="text-xs" style={{ color: "#5B6F8F" }}>{label}</div>
+              <div className="text-2xl font-bold" style={{ color: C.ink }}>{value}<span className="text-sm font-medium ml-1">{unit}</span></div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function Home({ health, go, estimate }) {
+  const { patient, activeVisit, visits, latestVitals } = health;
   const allergies = splitList(patient?.allergies);
   const last = visits.find((v) => v.status === "completed");
   return (
     <div className="grid gap-5">
-      <CareJourney visit={activeVisit} />
+      <CareJourney visit={activeVisit} estimate={estimate} />
+      <LatestVitals vitals={latestVitals} />
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="Your visits" right={<button onClick={() => go("history")} className="text-sm font-semibold" style={{ color: C.cobalt }}>See all</button>} className="lg:col-span-2">
           <div className="flex items-center gap-6">
@@ -178,6 +288,144 @@ function History({ visits }) {
           ))}
         </ol>
       )}
+    </Card>
+  );
+}
+
+const APPT_STYLE = {
+  requested: ["Waiting for the clinic", { background: "#FFF1D6", color: "#8A5B00" }],
+  confirmed: ["Confirmed", { background: "#DDF6EF", color: "#137A62" }],
+  declined: ["Declined", { background: "#FFE9E9", color: "#B23A3A" }],
+  cancelled: ["Cancelled", { background: C.mist, color: "#5B6F8F" }],
+  checked_in: ["Checked in", { background: "#E3EAFF", color: C.cobalt }],
+};
+
+function Appointments({ data, reload }) {
+  const [open, setOpen] = useState(false);
+  const [depts, setDepts] = useState([]);
+  const [f, setF] = useState({ department: "", date: "", time: "", reason: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const inp = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
+  const border = { border: `1px solid ${C.line}` };
+
+  useEffect(() => {
+    if (open && depts.length === 0) getDepartments().then((d) => setDepts(d.filter((x) => x.active)), () => {});
+  }, [open, depts.length]);
+
+  if (!data) return <Card title="Appointments"><p className="text-sm">Loading…</p></Card>;
+  if (!data.linked) {
+    return <Card title="Appointments"><Note>Booking needs your account linked to your health record. Ask reception to link your matric number, then come back here.</Note></Card>;
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await requestAppointment({ ...f, department: Number(f.department) });
+      setF({ department: "", date: "", time: "", reason: "" });
+      setOpen(false);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function cancel(a) {
+    if (!window.confirm(`Cancel your ${a.department_name} appointment on ${fmt(a.scheduled_for)} at ${a.time}?`)) return;
+    try {
+      await cancelAppointment(a.id);
+      reload();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  return (
+    <Card
+      title="Appointments"
+      right={
+        <button onClick={() => setOpen(!open)} className="inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-semibold text-white" style={{ background: C.cobalt }}>
+          {open ? <X size={16} /> : <Plus size={16} />} {open ? "Close" : "Request a slot"}
+        </button>
+      }
+    >
+      <p className="text-sm mb-4" style={{ color: "#5B6F8F" }}>
+        The clinic takes appointments {data.schedule}. The clinic confirms each request.
+        {data.holidays?.length > 0 && <> Closed on {data.holidays.slice(0, 3).map((h) => `${fmt(h.date)} (${h.name})`).join(", ")}.</>}
+      </p>
+      {error && <div role="alert" className="rounded-xl p-3 mb-4 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>}
+      {open && (
+        <form onSubmit={submit} className="grid gap-3 md:grid-cols-4 p-4 rounded-2xl mb-5" style={{ background: C.mist }}>
+          <label className="text-sm md:col-span-2">Department
+            <select className={inp} style={border} value={f.department} onChange={(e) => setF({ ...f, department: e.target.value })} required>
+              <option value="">Choose…</option>
+              {depts.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </label>
+          <label className="text-sm">Date<input type="date" className={inp} style={border} value={f.date} min={new Date().toLocaleDateString("en-CA")} onChange={(e) => setF({ ...f, date: e.target.value })} required /></label>
+          <label className="text-sm">Time<input type="time" step="900" className={inp} style={border} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} required /></label>
+          <label className="text-sm md:col-span-4">Reason<input className={inp} style={border} maxLength={300} placeholder="e.g. Persistent cough" value={f.reason} onChange={(e) => setF({ ...f, reason: e.target.value })} /></label>
+          <button disabled={busy} className="md:col-span-4 rounded-full py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ background: C.ink }}>{busy ? "Sending…" : "Send request"}</button>
+        </form>
+      )}
+      {data.appointments.length === 0 && <p className="text-sm">No appointments yet. Select Request a slot to ask for one.</p>}
+      <ul>
+        {data.appointments.map((a) => {
+          const [label, style] = APPT_STYLE[a.status] ?? [a.status, {}];
+          return (
+            <li key={a.id} className="py-3 flex items-center justify-between gap-3" style={{ borderTop: `1px solid ${C.line}` }}>
+              <div>
+                <div className="font-semibold" style={{ color: C.ink }}>{a.reason || a.department_name}</div>
+                <div className="text-sm" style={{ color: "#5B6F8F" }}>{fmt(a.scheduled_for)}, {a.time} · {a.department_name} · {a.reference}</div>
+                {a.staff_note && <div className="text-sm mt-1" style={{ color: C.ink }}>Clinic: {a.staff_note}</div>}
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="text-xs font-semibold rounded-full px-3 py-1 whitespace-nowrap" style={style}>{label}</span>
+                {(a.status === "requested" || a.status === "confirmed") && (
+                  <button aria-label={`Cancel appointment ${a.reference}`} onClick={() => cancel(a)}><X size={16} color="#8A9BB8" /></button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+function Medications() {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    getMyMedications().then(setData, () => setFailed(true));
+  }, []);
+  return (
+    <Card title="Medications on file">
+      {failed && <Note>Your medications can't be loaded right now. Please try again later.</Note>}
+      {!failed && !data && <p className="text-sm" role="status">Loading…</p>}
+      {data && data.medications.length === 0 && <p className="text-sm">No medicines have been prescribed to you at the health centre.</p>}
+      {data && data.medications.length > 0 && (
+        <ul className="grid gap-3" aria-label="Medications">
+          {data.medications.map((m, i) => (
+            <li key={i} className="rounded-2xl p-4" style={{ background: C.mist }}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold" style={{ color: C.ink }}>{m.drug} {m.dose}</span>
+                <span className="text-xs rounded-full px-2 py-0.5" style={{ background: m.status === "dispensed" ? "#D9F5EC" : "#FFF1D6", color: m.status === "dispensed" ? "#137A5E" : "#8A5B00" }}>
+                  {m.status === "dispensed" ? "Collected" : "Ready to collect at the pharmacy"}
+                </span>
+              </div>
+              <div className="text-sm">{m.route}, {m.frequency}{m.duration ? ` for ${m.duration}` : ""}</div>
+              {m.instructions && <div className="text-sm mt-1">{m.instructions}</div>}
+              <div className="text-xs mt-1" style={{ color: "#5B6F8F" }}>Prescribed {fmt(m.prescribedAt)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs mt-4" style={{ color: "#5B6F8F" }}>Questions about a medicine? Ask the pharmacy or the clinician who treated you.</p>
     </Card>
   );
 }
@@ -234,16 +482,27 @@ function Dashboard({ onSignedOut }) {
   const [tab, setTab] = useState("home");
   const [me, setMe] = useState(null);
   const [health, setHealth] = useState(null);
+  const [appts, setAppts] = useState(null);
   const [error, setError] = useState(null);
   const [showNotices, setShowNotices] = useState(false);
+  const [notes, setNotes] = useState(null);
+  const [notesFailed, setNotesFailed] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
+
+  // Separate from the record: if the notification service is down, the rest of the page still works.
+  const loadNotes = useCallback(
+    () => getNotifications().then((data) => { setNotes(data); setNotesFailed(false); }, () => setNotesFailed(true)),
+    [],
+  );
 
   // State is only set in promise callbacks, after the request settles.
   const load = useCallback(
     () =>
-      Promise.all([getMe(), getMyHealth()]).then(
-        ([profile, record]) => {
+      Promise.all([getMe(), getMyHealth(), getMyAppointments()]).then(
+        ([profile, record, appointments]) => {
           setMe(profile);
           setHealth(record);
+          setAppts(appointments);
           setError(null);
         },
         (err) => (err.status === 401 ? onSignedOut() : setError(err.message)),
@@ -252,22 +511,35 @@ function Dashboard({ onSignedOut }) {
   );
 
   useEffect(() => {
-    const first = setTimeout(load, 0);
-    const timer = setInterval(load, REFRESH_MS);
+    // The estimate is optional: without it the card still shows the number of people ahead.
+    const loadQueue = () => getMyQueue().then(setQueueInfo, () => setQueueInfo(null));
+    const refresh = () => { load(); loadNotes(); loadQueue(); };
+    const first = setTimeout(refresh, 0);
+    const timer = setInterval(refresh, REFRESH_MS);
     return () => {
       clearTimeout(first);
       clearInterval(timer);
     };
-  }, [load]);
+  }, [load, loadNotes]);
 
   async function logout() {
     await signOut();
     onSignedOut();
   }
 
-  const notices = [];
-  if (health && !health.linked) notices.push(`Your account isn't linked to a health record yet. Ask reception to link matric number ${me?.unique_id}.`);
-  if (health?.activeVisit?.status === "called") notices.push(`You've been called. Please go to ${health.activeVisit.department}.`);
+  const unread = notes?.unread ?? 0;
+
+  async function openNote(n) {
+    setShowNotices(false);
+    if (!n.readAt) await markNotificationRead(n.id).catch(() => {});
+    if (LINK_TAB[n.link]) setTab(LINK_TAB[n.link]);
+    loadNotes();
+  }
+
+  async function readAll() {
+    await markAllNotificationsRead().catch(() => {});
+    loadNotes();
+  }
 
   return (
     <div className="min-h-screen md:flex" style={{ background: C.mist, color: "#2A3B57", fontFamily: "'Avenir Next', 'Segoe UI', system-ui, sans-serif" }}>
@@ -302,16 +574,21 @@ function Dashboard({ onSignedOut }) {
             </p>
           </div>
           <div className="relative">
-            <button aria-label={`Notifications (${notices.length})`} onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
+            <button aria-label={`Notifications (${unread} unread)`} aria-expanded={showNotices} onClick={() => setShowNotices(!showNotices)} className="relative w-11 h-11 rounded-full bg-white flex items-center justify-center" style={{ border: `1px solid ${C.line}` }}>
               <Bell size={18} color={C.ink} />
-              {notices.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{notices.length}</span>
+              {unread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full text-[10px] text-white flex items-center justify-center" style={{ background: C.coral }}>{unread > 9 ? "9+" : unread}</span>
               )}
             </button>
             {showNotices && (
-              <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl p-3 grid gap-2 z-10 shadow-lg" style={{ border: `1px solid ${C.line}` }}>
-                {notices.length ? notices.map((n) => <div key={n} className="text-sm rounded-xl p-3" style={{ background: C.mist }}>{n}</div>)
-                  : <div className="text-sm p-3">No new notices.</div>}
+              <div className="absolute right-0 mt-2 w-80 max-w-[calc(100vw-2.5rem)] bg-white rounded-2xl p-3 grid gap-2 z-10 shadow-lg" style={{ border: `1px solid ${C.line}` }}>
+                {notesFailed && <div className="text-sm p-3">Notifications can't be loaded right now.</div>}
+                {!notesFailed && (notes?.results.length
+                  ? notes.results.slice(0, 5).map((n) => <NotificationItem key={n.id} n={n} onOpen={openNote} compact />)
+                  : <div className="text-sm p-3">No notifications yet.</div>)}
+                <button onClick={() => { setShowNotices(false); setTab("notifications"); }} className="text-sm font-medium p-2" style={{ color: C.cobalt }}>
+                  See all notifications
+                </button>
               </div>
             )}
           </div>
@@ -329,15 +606,12 @@ function Dashboard({ onSignedOut }) {
           </div>
         )}
 
-        {health && tab === "home" && <Home health={health} go={setTab} />}
+        {health && tab === "home" && <Home health={health} go={setTab} estimate={queueInfo?.estimatedWaitMinutes} />}
         {health && tab === "history" && <History visits={health.visits} />}
-        {tab === "appts" && (
-          <NotAvailable title="Appointments">
-            Online booking isn't available yet. Walk in to the health centre and reception will check you in. Your place in the queue then shows on the Today page.
-          </NotAvailable>
-        )}
+        {tab === "appts" && <Appointments data={appts} reload={load} />}
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
-        {tab === "meds" && <NotAvailable title="Medications on file">Prescriptions aren't kept in MediFlow yet. Check with the pharmacy or the clinician who treated you.</NotAvailable>}
+        {tab === "notifications" && <Notifications data={notes} failed={notesFailed} onOpen={openNote} onReadAll={readAll} />}
+        {tab === "meds" && <Medications />}
       </div>
     </div>
   );

@@ -22,7 +22,9 @@ MediFlow handles patient flow for the FUTA Health Centre. Staff register patient
 | Part | Technology | Location | Status |
 |---|---|---|---|
 | Core API | Django 5 + Django REST Framework | `apps/core-api/` | ✅ Auth, RBAC, patients, staff, departments, student record, AI proxy, health check |
-| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits**: check-in, call/start/complete/cancel, queue, live events (SSE), flow dashboard |
+| **Admin console** | **Laravel 12** (PHP, Blade) | `apps/admin-console/` | ✅ Audit-log viewer, flow reports + CSV, department settings. Admins only, no own database |
+| **Patient flow** | **Go** (pgx, PostgreSQL) | `apps/patient-flow/` | ✅ **Owns visits and appointments**: check-in with vitals, call/start/complete/cancel, queue, live events (SSE), flow dashboard and reports, appointment requests/bookings/same-day check-in |
+| **Notifications** | **Flask** (psycopg) | `apps/notifications/` | ✅ Turns patient-flow events into in-app notifications (called, checked in, you're next, appointment updates, new requests for staff). Bell + Notifications page in both apps. Email/SMS hooks, log-only until a provider is chosen |
 | Auth gateway | Go (standard library only) | `apps/gateway/` | ✅ Proxies `/api/auth/*`, verifies JWTs and roles |
 | AI service | FastAPI | `apps/ai-service/` | ✅ ESI triage suggestion and first-aid Q&A (rule-based, decision support only) |
 | Web client | React 18 + Vite, served by Nginx | `apps/web/` | ✅ Staff app: dashboard, queue with call/start/complete/cancel, patients (search, register, edit, link student), check-in with AI triage suggestion, staff management, account |
@@ -57,6 +59,7 @@ flowchart LR
         end
 
         FLOW["Go patient-flow<br/>visits · queue · live events<br/>dashboard"]
+        NOTIFY["Flask notifications<br/>in-app · email/SMS hooks"]
 
         AI["FastAPI AI service<br/>triage suggestion · first aid<br/>(internal only)"]
         DB[("PostgreSQL 16")]
@@ -68,6 +71,9 @@ flowchart LR
     NGINX -- "other /api/*" --> Core
     FLOW -. "JWKS" .-> AUTH
     FLOW --> DB
+    NGINX -- "/api/notifications" --> NOTIFY
+    DB -. "LISTEN mediflow_visits" .-> NOTIFY
+    NOTIFY --> DB
     GW -- "proxied request" --> AUTH
     GW -. "GET /api/auth/jwks<br/>(public key, cached)" .-> AUTH
     LEGACY -- "/api/* · session cookie" --> Core
@@ -273,7 +279,7 @@ cd mediflow-platform
 docker compose up --build
 ```
 
-Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>**. Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
+Open **<http://localhost:8080>** (staff app) and sign in with a demo account (4.4). The student dashboard runs at **<http://localhost:8081>** and the admin console at **<http://localhost:8082>** (sign in as `admin`). Stop with `Ctrl+C`; `docker compose down -v` also wipes the database and keys.
 
 To change settings, copy `.env.example` to `.env` and edit it. Compose reads it automatically.
 
@@ -328,6 +334,20 @@ go run .
 ```bash
 cd apps/patient-flow
 go run ./cmd/patient-flow        # uses the same POSTGRES_* variables
+```
+
+**Terminal 3d: Flask notifications → http://localhost:8095** (needs the database and the core API)
+```bash
+cd apps/notifications
+pip install -r requirements-dev.txt
+flask --app app.wsgi run --port 8095   # same POSTGRES_* variables; NOTIFY_CHANNELS=email,sms to log those too
+```
+
+**Terminal 3c: Laravel admin console → http://localhost:8082** (PHP 8.2+, Composer)
+```bash
+cd apps/admin-console
+composer install && cp .env.example .env && php artisan key:generate   # first time only
+php artisan serve --port=8082
 ```
 
 **Terminal 4: React client → http://localhost:5173**
@@ -385,7 +405,9 @@ Created by `seed_demo` (automatically in Docker). **Local development only.**
 (cd apps/core-api && python manage.py test)
 (cd apps/ai-service && pytest -q)
 (cd apps/gateway && go test ./...)
-(cd apps/patient-flow && go test ./...)   # add TEST_DATABASE_URL=...mediflow_test for the PostgreSQL tests
+(cd apps/patient-flow && go test ./...)
+(cd apps/notifications && pytest -q)          # add TEST_DATABASE_URL=postgresql://...mediflow_test for the PostgreSQL tests
+(cd apps/admin-console && php artisan test)   # add TEST_DATABASE_URL=...mediflow_test for the PostgreSQL tests
 (cd apps/web && npm run build)
 pytest -q scripts/tests
 ```
@@ -412,7 +434,11 @@ All are listed with defaults in [`.env.example`](../.env.example).
 | `WEB_PORT` | `8080` | Host port for the Docker stack |
 | Gateway: `DJANGO_BASE_URL`, `ALLOWED_ORIGIN`, `PORT` | `http://localhost:8000`, `http://localhost:5173`, `8080` | Gateway settings |
 | `VITE_GATEWAY_URL` / `VITE_API_URL` | empty = same origin | Where the web app sends auth / API requests. Leave empty: Nginx (Docker) and the Vite dev proxy route `/api/auth/*` to the gateway and `/api/*` to Django |
-| `MEDIFLOW_GATEWAY` / `MEDIFLOW_API` / `MEDIFLOW_FLOW` | `http://localhost:8080` / `:8000` / `:8090` | Vite dev-proxy targets (`npm run dev` only) |
+| `MEDIFLOW_GATEWAY` / `MEDIFLOW_API` / `MEDIFLOW_FLOW` / `MEDIFLOW_NOTIFY` | `http://localhost:8080` / `:8000` / `:8090` / `:8095` | Vite dev-proxy targets (`npm run dev` only) |
+| `MFA_REQUIRED_ROLES` (core API) | empty | Roles that must use two-step sign-in, e.g. `admin,doctor,nurse`. Empty: optional for all staff |
+| `REFRESH_RATE_LIMIT` / `LOGIN_RATE_LIMIT` | `60/min` / `10/min` | Token refresh per IP; login per IP and username |
+| `NOTIFY_CHANNELS` (notifications) | empty = in-app only | `email`, `sms`: extra channels. Log-only until a provider class is added in `apps/notifications/app/channels.py` |
+| `LISTEN_EVENTS` (notifications) | `1` | `0` runs the API without the event listener (e.g. a second replica) |
 | `JWKS_URL` / `TIME_ZONE` (patient-flow) | `http://localhost:8000/api/auth/jwks` / `Africa/Lagos` | Where Go gets signing keys; the hospital's local day |
 | `VITE_STUDENT_DASHBOARD_URL` | `http://localhost:5174` | Where the web app sends students after sign-in |
 
@@ -437,13 +463,41 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 
 ---
 
+### 4.7b Browser tests (Playwright)
+
+`e2e/` holds end-to-end tests that drive real browsers through the staff app, student dashboard and admin
+console: registration, AI triage, check-in with vitals, the queue lifecycle, live updates, appointments,
+staff management and the admin console. CI runs them against the full Docker stack on every PR.
+
+```bash
+cd e2e && npm install && npx playwright install chromium
+npx playwright test          # against the local dev servers (5173 / 5174 / 8082)
+WEB_URL=http://localhost:8080 STUDENT_URL=http://localhost:8081 ADMIN_URL=http://localhost:8082 npx playwright test   # Docker
+```
+The appointment test needs the clinic open at that moment; for local runs start patient-flow with
+`CLINIC_HOURS=00:00-23:59 CLINIC_DAYS=Sun-Sat` (CI does this).
+
+### 4.8 Monitoring
+
+Every backend service exposes Prometheus metrics at `/metrics`. Only `/api/*` is routed by the public
+Nginx, so these endpoints are reachable from the internal network only (CI checks this).
+
+| Service | Endpoint | Highlights |
+|---|---|---|
+| Django core API | `:8000/metrics` | requests and responses by view, status and latency (`django-prometheus`) |
+| Go patient-flow | `:8090/metrics` | `patient_flow_http_requests_total` / `_duration_seconds` by route pattern, `patient_flow_check_ins_total`, `patient_flow_visit_transitions_total{action}`, `patient_flow_event_stream_clients` |
+| Flask notifications | `:8095/healthz` | No metrics yet; the log shows each event and how many notifications it produced |
+| AI service | `:8001/metrics` | `mediflow_ai_requests_total`, latency, triage suggestions by ESI |
+
+Labels use route patterns, never raw URLs, so record IDs don't leak into metrics.
+
 ## 5. What's left
 
 ### 5.1 Decisions needed
 
 | # | Decision | Notes |
 |---|---|---|
-| D1 | **Remaining service ownership** | AI is now FastAPI (decided). Still open: Flask = notifications? Laravel = ops/reporting or billing? |
+| D1 | **Remaining service ownership** | Decided: AI = FastAPI, notifications = Flask, admin/reporting = Laravel (ADR-0002). Open: an email/SMS provider for notifications |
 | D2 | **Product scope** | The code is a walk-in ESI queue. The MVP brief asks for appointments, prescriptions and billing. |
 | D3 | **Main backend repo** | `MediFlow` and `MediFlow-BE` duplicate the Django code. Only `MediFlow` has the new work. |
 | D4 | **Public `/api/register`** | Still creates `reception` accounts that can read patient data. Require approval, or retire it? |
@@ -455,11 +509,12 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 ### 5.2 Remaining work, by priority
 
 **P0: security and correctness**
-- [ ] Rate-limit login and refresh (brute-force protection). AI endpoints are already limited.
+- [x] Rate-limit login and refresh (brute-force protection). AI endpoints are already limited.
+- [x] Two-step sign-in (authenticator app) for staff; `MFA_REQUIRED_ROLES` makes it mandatory per role.
 - [ ] Schedule `python manage.py flushexpiredtokens` (for example, a daily job).
-- [ ] Audit **patient record reads and writes**.
+- [x] Audit **patient record reads and writes** (patients and EMR).
 - [ ] Enforce password validators in all modes (currently off when `DEBUG=true`).
-- [ ] Move tokens out of `localStorage`, or harden against XSS (CSP).
+- [x] Harden against XSS: strict Content-Security-Policy on both React apps (tokens are still in `localStorage`).
 - [ ] Encrypt sensitive patient fields at rest.
 - [ ] TLS: put HTTPS in front of Nginx (certificates or a cloud load balancer).
 - [ ] Confirm the CI `stack` job passes on the first PR (first real Docker run).
@@ -478,7 +533,8 @@ openssl rsa -in jwt_private.pem -pubout -out jwt_public.pem
 
 **P2: planned services**
 - [ ] Realtime queue: Go WebSocket hub with Redis pub/sub
-- [ ] Notifications: SMS/email when a patient's turn is near
+- [x] Notifications (Flask): in-app, including "you're next" and appointment updates
+- [ ] Notifications: plug in a real email/SMS provider (the channel hooks exist; choose a provider first)
 - [ ] Ops/reporting (and billing if in scope)
 
 **P3: platform**
@@ -504,7 +560,9 @@ mediflow-platform/
 │   │   ├── config/               # settings.py, jwt_keys.py, urls.py
 │   │   └── tests/                # test_api.py, test_auth.py, test_ai.py
 │   ├── gateway/                  # Go auth gateway: main.go, jwt.go, tests, Dockerfile
-│   ├── patient-flow/             # Go: visits, queue, live events, flow dashboard (ADR-0002)
+│   ├── patient-flow/             # Go: visits, queue, live events, flow dashboard, reports (ADR-0002)
+│   ├── admin-console/            # Laravel: audit log, flow reports, departments (admins)
+│   ├── notifications/            # Flask: notifications from patient-flow events (ADR-0002)
 │   ├── ai-service/               # FastAPI: app/{main,triage,first_aid,schemas}.py, tests/
 │   ├── web/                      # React client + Dockerfile + nginx.conf (public entry point)
 │   ├── first-aid-ui/             # React + TS first-aid tips UI

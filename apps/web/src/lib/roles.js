@@ -6,7 +6,14 @@ const sets = {
   editPatients: ["admin", "doctor", "reception"],
   checkIn: ["admin", "doctor", "nurse", "reception"],
   triageSuggestion: ["admin", "doctor", "nurse"],
+  changeTriage: ["admin", "doctor", "nurse"],
+  readRecord: ["admin", "doctor", "nurse"],
+  writeNotes: ["doctor", "nurse"],
+  prescribe: ["doctor"],
+  admit: ["doctor", "nurse"],
+  pharmacy: ["pharmacy"],
   manageStaff: ["admin"],
+  manageAppointments: ["admin", "doctor", "nurse", "reception"],
   dashboard: ["admin", "doctor", "nurse", "reception", "lab", "pharmacy", "it"],
 };
 

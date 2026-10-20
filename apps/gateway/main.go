@@ -36,6 +36,12 @@ var routes = []route{
 	// Logout stays open so a client with an expired access token can still revoke its refresh token.
 	{"/api/auth/logout", "/api/auth/logout/", []string{http.MethodPost}, false, nil},
 	{"/api/auth/change-password", "/api/auth/change-password/", []string{http.MethodPost}, true, nil},
+	// Two-step sign-in. verify is the second login step, so it needs no token; the rest manage the authenticator.
+	{"/api/auth/mfa/verify", "/api/auth/mfa/verify/", []string{http.MethodPost}, false, nil},
+	{"/api/auth/mfa/status", "/api/auth/mfa/status/", []string{http.MethodGet}, true, nil},
+	{"/api/auth/mfa/setup", "/api/auth/mfa/setup/", []string{http.MethodPost}, true, nil},
+	{"/api/auth/mfa/confirm", "/api/auth/mfa/confirm/", []string{http.MethodPost}, true, nil},
+	{"/api/auth/mfa/disable", "/api/auth/mfa/disable/", []string{http.MethodPost}, true, nil},
 	{"/api/auth/jwks", "/api/auth/jwks", []string{http.MethodGet}, false, nil},
 }
 

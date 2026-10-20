@@ -12,13 +12,15 @@ ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "loc
 INSTALLED_APPS = [
     "django.contrib.admin", "django.contrib.auth", "django.contrib.contenttypes",
     "django.contrib.sessions", "django.contrib.messages", "django.contrib.staticfiles",
-    "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai",
+    "django_prometheus", "corsheaders", "rest_framework", "rest_framework_simplejwt.token_blacklist", "apps.accounts", "apps.patients", "apps.operations", "apps.ai", "apps.notifications", "apps.clinic", "apps.emr",
 ]
+# Prometheus middleware wraps everything else (first and last) to time whole requests.
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware", "django.middleware.security.SecurityMiddleware",
+    "django_prometheus.middleware.PrometheusBeforeMiddleware", "corsheaders.middleware.CorsMiddleware", "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware", "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware", "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware", "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "django_prometheus.middleware.PrometheusAfterMiddleware",
 ]
 ROOT_URLCONF = "config.urls"
 TEMPLATES = [{"BACKEND": "django.template.backends.django.DjangoTemplates", "DIRS": [], "APP_DIRS": True,
@@ -39,7 +41,9 @@ LANGUAGE_CODE, TIME_ZONE, USE_I18N, USE_TZ = "en-us", "Africa/Lagos", True, True
 STATIC_URL, STATIC_ROOT = "/static/", BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # JWT (RS256) for the React client and other services; sessions for the legacy FUTA frontend.
-REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min"), "login": os.getenv("LOGIN_RATE_LIMIT", "10/min"), "register": os.getenv("REGISTER_RATE_LIMIT", "20/hour")}}
+REST_FRAMEWORK = {"DEFAULT_AUTHENTICATION_CLASSES": ["rest_framework_simplejwt.authentication.JWTAuthentication", "rest_framework.authentication.SessionAuthentication"], "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.IsAuthenticated"], "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"], "DEFAULT_THROTTLE_RATES": {"ai": os.getenv("AI_RATE_LIMIT", "30/min"), "login": os.getenv("LOGIN_RATE_LIMIT", "10/min"), "register": os.getenv("REGISTER_RATE_LIMIT", "20/hour"), "refresh": os.getenv("REFRESH_RATE_LIMIT", "60/min")}}
+# Roles that must use two-step sign-in (authenticator app), e.g. "admin,doctor,nurse". Empty: optional for everyone.
+MFA_REQUIRED_ROLES = frozenset(r.strip() for r in os.getenv("MFA_REQUIRED_ROLES", "").split(",") if r.strip())
 CORS_ALLOWED_ORIGINS = [origin.strip() for origin in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5500,http://127.0.0.1:5500,http://localhost:3000").split(",") if origin.strip()]
 CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS

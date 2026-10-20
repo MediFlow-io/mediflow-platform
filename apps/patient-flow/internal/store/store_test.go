@@ -52,7 +52,8 @@ func setup(t *testing.T) *fixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
-	if _, err := pool.Exec(ctx, `TRUNCATE operations_auditlog, patients_visit, patients_patient, patients_department, accounts_user RESTART IDENTITY CASCADE`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE operations_auditlog, patients_visit, patients_patient, patients_department, accounts_user,
+		clinic_servicehours, clinic_holiday, clinic_queuesettings, clinic_staffshift, patients_triagechange RESTART IDENTITY CASCADE`); err != nil {
 		t.Fatalf("schema missing? run the core API migrations first: %v", err)
 	}
 	f := &fixture{pool: pool, s: New(pool)}
@@ -311,4 +312,49 @@ func waitEvent(t *testing.T, sub <-chan []byte) Event {
 		t.Fatal("no event received")
 	}
 	return Event{}
+}
+
+func TestReportRowsRange(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	v, err := f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.patient, DepartmentID: f.opd, ESI: 2})
+	must(t, err)
+	_, err = f.s.Transition(ctx, f.nurse, v.ID, "start")
+	must(t, err)
+	rows, err := f.s.ReportRows(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
+	must(t, err)
+	if len(rows) != 1 || rows[0].DepartmentName != "Outpatient" || rows[0].ESI != 2 || rows[0].StartedAt == nil ||
+		rows[0].ClinicianName == nil || *rows[0].ClinicianName != "Nurse" {
+		t.Fatalf("report rows: %+v", rows)
+	}
+	if rows, _ := f.s.ReportRows(ctx, time.Now().Add(time.Hour), time.Now().Add(2*time.Hour)); len(rows) != 0 {
+		t.Fatalf("out-of-range visits must not be returned: %+v", rows)
+	}
+}
+
+func TestVitalsRoundTrip(t *testing.T) {
+	f := setup(t)
+	ctx := context.Background()
+	hr, pain, temp := 118, 7, 38.6
+	v, err := f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.patient, DepartmentID: f.opd, ESI: 2,
+		Vitals: Vitals{Complaint: "chest pain", PainScore: &pain, HeartRate: &hr, TemperatureC: &temp, AVPU: "V"}})
+	must(t, err)
+	got := v.Vitals
+	if got.Complaint != "chest pain" || *got.HeartRate != 118 || *got.PainScore != 7 || *got.TemperatureC != 38.6 || got.AVPU != "V" || got.SpO2 != nil {
+		t.Fatalf("vitals not stored: %+v", got)
+	}
+	var details string
+	must(t, f.pool.QueryRow(ctx, `SELECT details::text FROM operations_auditlog WHERE action = 'visit.checked_in'`).Scan(&details))
+	if strings.Contains(details, "chest pain") || !strings.Contains(details, `"vitals_recorded": true`) {
+		t.Fatalf("audit must note vitals without clinical text: %s", details)
+	}
+	spo2 := 91
+	updated, err := f.s.UpdateVisit(ctx, f.reception, v.ID, VisitPatch{Vitals: &Vitals{Complaint: "chest pain, worse", SpO2: &spo2}})
+	must(t, err)
+	if updated.Vitals.HeartRate != nil || *updated.Vitals.SpO2 != 91 || updated.Vitals.Complaint != "chest pain, worse" {
+		t.Fatalf("patch should replace the whole set: %+v", updated.Vitals)
+	}
+	// A check-in without vitals still works (text columns are NOT NULL in the schema).
+	_, err = f.s.CheckIn(ctx, f.reception, CheckIn{PatientID: f.otherPatnt, DepartmentID: f.opd, ESI: 4})
+	must(t, err)
 }

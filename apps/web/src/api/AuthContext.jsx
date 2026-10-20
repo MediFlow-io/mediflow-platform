@@ -9,6 +9,7 @@ const toUser = (data) => ({
   name: data.name,
   email: data.email,
   role: data.role,
+  mfaSetupRequired: Boolean(data.mfa_setup_required),
 });
 
 export function AuthProvider({ children }) {
@@ -35,13 +36,21 @@ export function AuthProvider({ children }) {
       .catch(signOutLocally);
   }, [status, signOutLocally]);
 
-  const login = useCallback(async (unique_id, password) => {
-    const data = await authApi.loginStudent(unique_id, password);
+  const finishSignIn = useCallback((data) => {
     setTokens({ access: data.access, refresh: data.refresh });
     setUser(toUser(data));
     setStatus("signed-in");
     return data;
   }, []);
+
+  // Returns { mfaRequired, mfaToken } when the account uses two-step sign-in; call verifyMfa next.
+  const login = useCallback(async (unique_id, password) => {
+    const data = await authApi.loginStudent(unique_id, password);
+    if (data.mfa_required) return { mfaRequired: true, mfaToken: data.mfa_token };
+    return finishSignIn(data);
+  }, [finishSignIn]);
+
+  const verifyMfa = useCallback(async (mfaToken, code) => finishSignIn(await authApi.verifyMfa(mfaToken, code)), [finishSignIn]);
 
   const logout = useCallback(async () => {
     const refresh = getRefreshToken();
@@ -55,7 +64,7 @@ export function AuthProvider({ children }) {
   }, [signOutLocally]);
 
   return (
-    <AuthContext.Provider value={{ user, status, isAuthenticated: status === "signed-in", login, logout }}>
+    <AuthContext.Provider value={{ user, status, isAuthenticated: status === "signed-in", login, verifyMfa, logout }}>
       {children}
     </AuthContext.Provider>
   );

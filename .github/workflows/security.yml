@@ -1,0 +1,92 @@
+name: Security scans
+
+# Static analysis (CodeQL) and known-vulnerability checks for every service's dependencies.
+# Not a required check: findings show in the Security tab and in this run's logs for the team to triage.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 3 * * 1" # Mondays: new advisories appear even when the code doesn't change
+
+permissions:
+  contents: read
+
+jobs:
+  codeql:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {language: python, build-mode: none}
+          - {language: javascript-typescript, build-mode: none}
+          - {language: go, build-mode: manual}
+    steps:
+      - uses: actions/checkout@v4
+      # Go must be installed before CodeQL starts, so CodeQL traces this Go's compiler during the build.
+      - if: matrix.language == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/patient-flow/go.mod
+          cache: false
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+      - if: matrix.language == 'go'
+        name: Build the Go services
+        run: |
+          (cd apps/gateway && go build -a ./...)
+          (cd apps/patient-flow && go build -a ./...)
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: /language:${{ matrix.language }}
+
+  dependencies:
+    name: Dependency audit (${{ matrix.app }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {app: core-api, kind: python}
+          - {app: ai-service, kind: python}
+          - {app: notifications, kind: python}
+          - {app: gateway, kind: go}
+          - {app: patient-flow, kind: go}
+          - {app: web, kind: node}
+          - {app: student-dashboard, kind: node}
+          - {app: first-aid-ui, kind: node}
+    defaults:
+      run:
+        working-directory: apps/${{ matrix.app }}
+    steps:
+      - uses: actions/checkout@v4
+      - if: matrix.kind == 'python'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - if: matrix.kind == 'python'
+        name: pip-audit
+        run: pip install pip-audit && pip-audit -r requirements.txt --strict
+      - if: matrix.kind == 'go'
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/${{ matrix.app }}/go.mod
+          cache-dependency-path: apps/${{ matrix.app }}/go.sum
+      - if: matrix.kind == 'go'
+        name: govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+      - if: matrix.kind == 'node'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - if: matrix.kind == 'node'
+        name: npm audit (production dependencies, high and critical)
+        run: npm audit --omit=dev --audit-level=high
