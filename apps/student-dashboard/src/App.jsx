@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
 import {
-  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getNotifications, isSignedIn,
+  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyQueue, getNotifications, isSignedIn,
   markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
 } from "./api";
 
@@ -110,7 +110,7 @@ function Note({ children }) {
   );
 }
 
-function CareJourney({ visit }) {
+function CareJourney({ visit, estimate }) {
   const stage = visit ? stageOf[visit.status] : -1;
   let headline = "No active visit";
   let detail = "Walk in to the health centre and reception will check you in. You can then follow your place here.";
@@ -119,6 +119,7 @@ function CareJourney({ visit }) {
     detail = visit.patientsAhead === 0
       ? `You're next in ${visit.department}. Please stay nearby.`
       : `${visit.patientsAhead} ${visit.patientsAhead === 1 ? "person is" : "people are"} ahead of you in ${visit.department}. More urgent cases are seen first.`;
+    if (visit.patientsAhead > 0 && estimate > 0) detail += ` Roughly ${estimate} min, but this can change.`;
   } else if (visit?.status === "called") {
     headline = "You've been called";
     detail = `Please go to ${visit.department} now.`;
@@ -193,13 +194,13 @@ function LatestVitals({ vitals }) {
   );
 }
 
-function Home({ health, go }) {
+function Home({ health, go, estimate }) {
   const { patient, activeVisit, visits, latestVitals } = health;
   const allergies = splitList(patient?.allergies);
   const last = visits.find((v) => v.status === "completed");
   return (
     <div className="grid gap-5">
-      <CareJourney visit={activeVisit} />
+      <CareJourney visit={activeVisit} estimate={estimate} />
       <LatestVitals vitals={latestVitals} />
       <div className="grid gap-5 lg:grid-cols-3">
         <Card title="Your visits" right={<button onClick={() => go("history")} className="text-sm font-semibold" style={{ color: C.cobalt }}>See all</button>} className="lg:col-span-2">
@@ -417,6 +418,7 @@ function Dashboard({ onSignedOut }) {
   const [showNotices, setShowNotices] = useState(false);
   const [notes, setNotes] = useState(null);
   const [notesFailed, setNotesFailed] = useState(false);
+  const [queueInfo, setQueueInfo] = useState(null);
 
   // Separate from the record: if the notification service is down, the rest of the page still works.
   const loadNotes = useCallback(
@@ -440,7 +442,9 @@ function Dashboard({ onSignedOut }) {
   );
 
   useEffect(() => {
-    const refresh = () => { load(); loadNotes(); };
+    // The estimate is optional: without it the card still shows the number of people ahead.
+    const loadQueue = () => getMyQueue().then(setQueueInfo, () => setQueueInfo(null));
+    const refresh = () => { load(); loadNotes(); loadQueue(); };
     const first = setTimeout(refresh, 0);
     const timer = setInterval(refresh, REFRESH_MS);
     return () => {
@@ -533,7 +537,7 @@ function Dashboard({ onSignedOut }) {
           </div>
         )}
 
-        {health && tab === "home" && <Home health={health} go={setTab} />}
+        {health && tab === "home" && <Home health={health} go={setTab} estimate={queueInfo?.estimatedWaitMinutes} />}
         {health && tab === "history" && <History visits={health.visits} />}
         {tab === "appts" && <Appointments data={appts} reload={load} />}
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}

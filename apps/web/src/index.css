@@ -307,6 +307,13 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .notification-title { font-weight: 600; }
 .notification-body { font-size: 14px; color: var(--slate); }
 
+.inline-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.inline-form label { display: grid; gap: 4px; font-size: 12px; color: var(--slate); }
+.inline-form .grow { flex: 1; min-width: 220px; }
+.inline-form .error { flex-basis: 100%; }
+.row-form td { background: var(--paper); }
+.notice { background: #e7f2f0; color: var(--teal); padding: 10px 14px; border-radius: var(--radius); margin: 0 0 16px; }
+
 .split { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 20px; align-items: start; }
 .search { margin-bottom: 12px; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; }
