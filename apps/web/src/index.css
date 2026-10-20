@@ -314,6 +314,20 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .row-form td { background: var(--paper); }
 .notice { background: #e7f2f0; color: var(--teal); padding: 10px 14px; border-radius: var(--radius); margin: 0 0 16px; }
 
+.record { display: grid; gap: 4px; padding: 6px 4px; }
+.record-alerts { display: flex; flex-wrap: wrap; gap: 6px; }
+.record-section { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 6px; }
+.record-section h3 { margin: 0 0 6px; font-size: 14px; }
+.record-section textarea { width: 100%; }
+.inline-form .check { display: flex; flex-direction: row; align-items: center; gap: 6px; color: var(--ink); }
+.inline-form .check input { width: auto; }
+.plain-list { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 4px; }
+.plain-list .btn-link { margin-left: 8px; }
+.struck { text-decoration: line-through; color: var(--slate); }
+.prewrap { white-space: pre-wrap; }
+.history { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.history li { border-left: 3px solid var(--line); padding-left: 10px; }
+
 .split { display: grid; grid-template-columns: minmax(260px, 360px) 1fr; gap: 20px; align-items: start; }
 .search { margin-bottom: 12px; }
 .list { list-style: none; margin: 0; padding: 0; max-height: 70vh; overflow-y: auto; }

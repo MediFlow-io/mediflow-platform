@@ -391,6 +391,57 @@ paths:
     delete:
       summary: Remove a shift (admin)
       responses: {"204": {description: Removed}}
+  /api/emr/visits/{visitId}:
+    parameters: [{name: visitId, in: path, required: true, schema: {type: integer}}]
+    get:
+      summary: A visit's clinical record (admin, doctor, nurse). Audited as emr.visit_viewed
+      description: |
+        `{visit: {id, visitNumber, status, esi, department, checkedInAt, patient: {id, fullName, hospitalNumber,
+        allergies, chronicConditions}}, consultation, diagnoses, prescriptions, referrals, admission}`.
+        EMR paths live under /api/emr because /api/visits belongs to the Go service. Nothing can be recorded on a
+        cancelled visit (400). Records are never deleted.
+      responses: {"200": {description: OK}, "403": {$ref: "#/components/responses/Error"}, "404": {$ref: "#/components/responses/Error"}}
+  /api/emr/visits/{visitId}/consultation:
+    put:
+      summary: "Write or replace the consultation notes {notes} (doctor, nurse)"
+      responses: {"201": {description: Created}, "200": {description: Updated}, "400": {$ref: "#/components/responses/Error"}}
+  /api/emr/visits/{visitId}/diagnoses:
+    post:
+      summary: "Add a diagnosis {description, code?, primary?} (doctor). A new primary replaces the old primary"
+      responses: {"201": {description: Created}}
+  /api/emr/diagnoses/{id}/entered-in-error:
+    post:
+      summary: Mark a diagnosis entered in error (doctor). Diagnoses are never deleted
+      responses: {"200": {description: Updated}}
+  /api/emr/visits/{visitId}/prescriptions:
+    post:
+      summary: "Prescribe {drug, dose, route?, frequency, duration?, instructions?} (doctor)"
+      responses: {"201": {description: Created}}
+  /api/emr/prescriptions:
+    get:
+      summary: "Pharmacy work list ?status=prescribed (default, oldest first) | dispensed | cancelled (pharmacy, doctor, nurse, admin)"
+      description: Each item includes the patient's allergies.
+      responses: {"200": {description: OK}}
+  /api/emr/prescriptions/{id}/{action}:
+    post:
+      summary: "dispense (pharmacy) or cancel {reason} (doctor). 409 unless still prescribed"
+      responses: {"200": {description: Updated}, "409": {description: Already dispensed or cancelled}}
+  /api/emr/visits/{visitId}/referrals:
+    post:
+      summary: "Refer {destination, reason, urgency: routine|urgent|emergency} (doctor)"
+      responses: {"201": {description: Created}}
+  /api/emr/visits/{visitId}/{action}:
+    post:
+      summary: "admission {ward} or discharge {summary} (doctor, nurse). 409 if already admitted / discharged"
+      responses: {"201": {description: Admitted}, "200": {description: Discharged}}
+  /api/emr/patients/{patientId}/history:
+    get:
+      summary: Every visit's clinical record for a patient, newest first, up to 50 (admin, doctor, nurse)
+      responses: {"200": {description: "{patient, visits: [record]}"}}
+  /api/me/medications:
+    get:
+      summary: The signed-in patient's own prescriptions (not cancelled), without diagnoses
+      responses: {"200": {description: "{linked, medications: [{drug, dose, route, frequency, duration, instructions, status, prescribedAt, dispensedAt}]}"}}
   /api/me/health:
     get:
       summary: The caller's own linked record (e.g. a student). Excludes diagnosis, treatment and internal notes.

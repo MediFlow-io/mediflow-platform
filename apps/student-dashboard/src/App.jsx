@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
 import {
-  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyQueue, getNotificationPreferences,
+  cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyMedications, getMyQueue, getNotificationPreferences,
   getNotifications, isSignedIn, setNotificationPreferences,
   markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
 } from "./api";
@@ -397,6 +397,39 @@ function Appointments({ data, reload }) {
   );
 }
 
+function Medications() {
+  const [data, setData] = useState(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    getMyMedications().then(setData, () => setFailed(true));
+  }, []);
+  return (
+    <Card title="Medications on file">
+      {failed && <Note>Your medications can't be loaded right now. Please try again later.</Note>}
+      {!failed && !data && <p className="text-sm" role="status">Loading…</p>}
+      {data && data.medications.length === 0 && <p className="text-sm">No medicines have been prescribed to you at the health centre.</p>}
+      {data && data.medications.length > 0 && (
+        <ul className="grid gap-3" aria-label="Medications">
+          {data.medications.map((m, i) => (
+            <li key={i} className="rounded-2xl p-4" style={{ background: C.mist }}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-semibold" style={{ color: C.ink }}>{m.drug} {m.dose}</span>
+                <span className="text-xs rounded-full px-2 py-0.5" style={{ background: m.status === "dispensed" ? "#D9F5EC" : "#FFF1D6", color: m.status === "dispensed" ? "#137A5E" : "#8A5B00" }}>
+                  {m.status === "dispensed" ? "Collected" : "Ready to collect at the pharmacy"}
+                </span>
+              </div>
+              <div className="text-sm">{m.route}, {m.frequency}{m.duration ? ` for ${m.duration}` : ""}</div>
+              {m.instructions && <div className="text-sm mt-1">{m.instructions}</div>}
+              <div className="text-xs mt-1" style={{ color: "#5B6F8F" }}>Prescribed {fmt(m.prescribedAt)}</div>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="text-xs mt-4" style={{ color: "#5B6F8F" }}>Questions about a medicine? Ask the pharmacy or the clinician who treated you.</p>
+    </Card>
+  );
+}
+
 function NotAvailable({ title, children }) {
   return <Card title={title}><Note>{children}</Note></Card>;
 }
@@ -578,7 +611,7 @@ function Dashboard({ onSignedOut }) {
         {tab === "appts" && <Appointments data={appts} reload={load} />}
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
         {tab === "notifications" && <Notifications data={notes} failed={notesFailed} onOpen={openNote} onReadAll={readAll} />}
-        {tab === "meds" && <NotAvailable title="Medications on file">Prescriptions aren't kept in MediFlow yet. Check with the pharmacy or the clinician who treated you.</NotAvailable>}
+        {tab === "meds" && <Medications />}
       </div>
     </div>
   );
