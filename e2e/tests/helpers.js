@@ -32,7 +32,7 @@ ${password}`;
 }
 
 export async function signInStaff(page, username, password) {
-  await page.goto(WEB);
+  await page.goto(`${WEB}/#signin`);
   await page.getByLabel("Matric No. or Staff ID").fill(username);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in" }).click();

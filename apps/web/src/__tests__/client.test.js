@@ -7,7 +7,8 @@ globalThis.localStorage = {
   removeItem: (k) => store.delete(k),
 };
 
-const { errorMessage, request, setTokens, getAccessToken, onSessionExpired, ApiError, streamEvents } = await import("../api/client");
+const { errorMessage, request, setTokens, getAccessToken, onSessionExpired, ApiError, streamEvents, wakePolicy, onServerWaking } =
+  await import("../api/client");
 
 const json = (status, body) => ({ ok: status < 400, status, json: async () => body });
 
@@ -59,6 +60,28 @@ describe("request", () => {
     expect(expired).toHaveBeenCalledOnce();
     expect(getAccessToken()).toBeNull();
     stop();
+  });
+
+  it("waits for a sleeping server: retries the host's error page, never our own JSON errors", async () => {
+    Object.assign(wakePolicy, { firstDelayMs: 1, maxDelayMs: 1, waitMs: 1000 });
+    const hostPage = { ok: false, status: 502, headers: new Headers({ "Content-Type": "text/html" }), json: async () => { throw new Error(); } };
+    const fetch = vi.fn().mockResolvedValueOnce(hostPage).mockResolvedValueOnce(hostPage).mockResolvedValueOnce(json(200, { access: "A" }));
+    vi.stubGlobal("fetch", fetch);
+    const states = [];
+    const stop = onServerWaking((on) => states.push(on));
+    await expect(request("/api/auth/login", { method: "POST", body: {}, auth: false })).resolves.toEqual({ access: "A" });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(states).toEqual([true, false]);
+    stop();
+
+    const ours = { ok: false, status: 503, headers: new Headers({ "Content-Type": "application/json" }), json: async () => ({ detail: "Busy." }) };
+    vi.stubGlobal("fetch", vi.fn(async () => ours));
+    await expect(request("/api/queue")).rejects.toThrow("Busy.");
+    expect(fetch).toHaveBeenCalledTimes(3);
+
+    wakePolicy.waitMs = 0;
+    vi.stubGlobal("fetch", vi.fn(async () => hostPage));
+    await expect(request("/api/queue")).rejects.toThrow("still starting up");
   });
 
   it("turns network failures into a readable error", async () => {

@@ -50,7 +50,7 @@ let refreshInFlight = null;
 function refreshAccessToken() {
   const refresh = getRefreshToken();
   if (!refresh) return Promise.resolve(false);
-  refreshInFlight ??= fetch(`${GATEWAY_BASE_URL}/api/auth/token/refresh`, {
+  refreshInFlight ??= fetchAwake(`${GATEWAY_BASE_URL}/api/auth/token/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh }),
@@ -77,6 +77,45 @@ export function onSessionExpired(listener) {
   return () => listeners.delete(listener);
 }
 
+// On free hosting, idle services sleep and take up to a minute to start again. Until they are up, the
+// host answers with its own 502/503 page (never JSON, unlike our APIs). Nothing reached the service, so
+// the request is safe to repeat, even a sign-in or registration.
+export const wakePolicy = { waitMs: 100_000, firstDelayMs: 2_000, maxDelayMs: 6_000 };
+
+const wakeListeners = new Set();
+let waking = 0;
+/** Called with true while a request is waiting for a sleeping server, and false once it's answered. */
+export function onServerWaking(listener) {
+  wakeListeners.add(listener);
+  return () => wakeListeners.delete(listener);
+}
+function setWaking(delta) {
+  const before = waking > 0;
+  waking += delta;
+  if (before !== waking > 0) wakeListeners.forEach((listener) => listener(waking > 0));
+}
+
+const isHostErrorPage = (res) =>
+  (res.status === 502 || res.status === 503) && !(res.headers?.get?.("Content-Type") ?? "").includes("json");
+
+async function fetchAwake(url, options) {
+  const deadline = Date.now() + wakePolicy.waitMs;
+  let delay = wakePolicy.firstDelayMs;
+  let wakingCounted = false;
+  try {
+    for (;;) {
+      const res = await fetch(url, options);
+      if (!isHostErrorPage(res) || Date.now() + delay > deadline) return res;
+      if (!wakingCounted) setWaking(+1);
+      wakingCounted = true;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      delay = Math.min(delay * 2, wakePolicy.maxDelayMs);
+    }
+  } finally {
+    if (wakingCounted) setWaking(-1);
+  }
+}
+
 export async function request(path, { method = "GET", body, auth = true, retried = false } = {}) {
   const base = path.startsWith("/api/auth/") ? GATEWAY_BASE_URL : API_BASE_URL;
   const headers = { "Content-Type": "application/json" };
@@ -85,7 +124,7 @@ export async function request(path, { method = "GET", body, auth = true, retried
 
   let res;
   try {
-    res = await fetch(`${base}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetchAwake(`${base}${path}`, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch {
     throw new ApiError("Can't reach the MediFlow server. Check your connection and try again.", 0, null);
   }
@@ -100,6 +139,9 @@ export async function request(path, { method = "GET", body, auth = true, retried
     data = await res.json();
   } catch {
     // Some endpoints (e.g. logout) return no body.
+  }
+  if (isHostErrorPage(res)) {
+    throw new ApiError("The MediFlow server is still starting up. Please try again in a minute.", res.status, null);
   }
   if (!res.ok) throw new ApiError(errorMessage(data, res.status), res.status, data);
   return data;

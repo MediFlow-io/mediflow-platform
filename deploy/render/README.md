@@ -16,6 +16,13 @@ about a minute to wake. The first page after a quiet spell can take 1–2 minute
 after another); after that it's normal speed. Render gives 750 free hours a month across all services.
 While the notification service sleeps, live events (e.g. "you've been called") aren't delivered.
 
+What the apps do about it:
+- Opening the web app or student dashboard pings every backend (`/api/health`, `/wake/gateway`, `/wake/flow`,
+  `/wake/notify`), so they are usually awake by the time someone signs in.
+- A sleeping service answers other services with Render's own 502 page straight away. The gateway retries
+  for up to `WAKE_TIMEOUT` (90s), and the apps retry too, with a "server is waking up" notice. Only Render's
+  error page is retried, never an answer from our services, so a sign-in or registration is never sent twice.
+
 ## 1. Neon: create the database (5 min)
 
 1. Sign in at <https://console.neon.tech> (GitHub login works).
@@ -70,7 +77,7 @@ This file holds `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` and `APP_KEY`. It's git-igno
 | Symptom | Where to look |
 |---|---|
 | A page spins for a long time | Normal on the first visit after a quiet spell (services waking). Wait 1–2 min and reload |
-| "502" or "Bad gateway" | One backend is still waking or failed: Render → that service → Logs |
+| "502" or "Bad gateway" | Only if a backend takes over 90s to wake, or failed to start: Render → that service → Logs |
 | mediflow-io-api fails to start | Logs say why: usually `DATABASE_URL` (copy it again from Neon) or the JWT keys (paste the whole block) |
 | Admin console "service could not be reached" | Wait a minute (backends waking) and retry |
 | Notifications don't appear | The notification service was asleep; they work while someone has the app open |

@@ -126,6 +126,8 @@ services:
         value: https://mediflow-io-web.onrender.com
       - key: UPSTREAM_TIMEOUT
         value: 90s
+      - key: WAKE_TIMEOUT           # keep retrying while the API wakes up (free services sleep when idle)
+        value: 90s
 
   # ---------------------------------------------------------------- staff app (React + Nginx)
   - type: web
