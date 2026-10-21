@@ -3,7 +3,7 @@ import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, Sh
 import {
   cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyMedications, getMyQueue, getNotificationPreferences,
   getNotifications, isSignedIn, setNotificationPreferences,
-  markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut,
+  markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut, wakeServers,
 } from "./api";
 
 // Mediflow palette
@@ -473,6 +473,7 @@ function SignIn({ onSignedIn }) {
         <button disabled={busy} className="rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ background: C.ink }}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+        {busy && <p role="status" className="text-xs text-center" style={{ color: "#5B6F8F" }}>If the server was idle it can take up to a minute to wake up.</p>}
       </form>
     </div>
   );
@@ -620,5 +621,6 @@ function Dashboard({ onSignedOut }) {
 export default function App() {
   const [signedIn, setSignedIn] = useState(isSignedIn());
   const signedOut = useCallback(() => setSignedIn(false), []);
+  useEffect(wakeServers, []);
   return signedIn ? <Dashboard onSignedOut={signedOut} /> : <SignIn onSignedIn={() => setSignedIn(true)} />;
 }

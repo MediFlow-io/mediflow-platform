@@ -2,7 +2,7 @@ module mediflow/patient-flow
 
 go 1.26
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/jackc/pgx/v5 v5.9.2

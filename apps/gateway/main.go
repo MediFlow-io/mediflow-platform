@@ -11,11 +11,15 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"errors"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -68,6 +72,11 @@ func main() {
 		log.Fatalf("invalid UPSTREAM_TIMEOUT: %v", err)
 	}
 	client := &http.Client{Timeout: timeout}
+	// WAKE_TIMEOUT: how long to keep retrying while Django is starting. Free hosts put idle services to
+	// sleep and answer with their own 502/503 page until the service is up again. 0 = no retries.
+	if wakeWait, err = time.ParseDuration(mustGetenv("WAKE_TIMEOUT", "0s")); err != nil {
+		log.Fatalf("invalid WAKE_TIMEOUT: %v", err)
+	}
 	jwt := newVerifier(
 		djangoBaseURL+"/api/auth/jwks",
 		mustGetenv("JWT_ISSUER", "mediflow-core"),
@@ -129,19 +138,7 @@ func handleProxy(w http.ResponseWriter, req *http.Request, client *http.Client, 
 		return
 	}
 
-	upstreamReq, err := http.NewRequestWithContext(req.Context(), req.Method, target.String(), bytes.NewReader(body))
-	if err != nil {
-		http.Error(w, `{"detail":"gateway error building request"}`, http.StatusBadGateway)
-		return
-	}
-
-	// Forward relevant headers, including the bearer token from the client.
-	upstreamReq.Header.Set("Content-Type", "application/json")
-	if auth := req.Header.Get("Authorization"); auth != "" {
-		upstreamReq.Header.Set("Authorization", auth)
-	}
-
-	resp, err := client.Do(upstreamReq)
+	resp, err := send(req.Context(), client, req.Method, target.String(), body, req.Header.Get("Authorization"))
 	if err != nil {
 		log.Printf("upstream error for %s: %v", r.djangoPath, err)
 		http.Error(w, `{"detail":"auth service unavailable"}`, http.StatusBadGateway)
@@ -159,6 +156,54 @@ func handleProxy(w http.ResponseWriter, req *http.Request, client *http.Client, 
 	}
 	w.WriteHeader(resp.StatusCode)
 	io.Copy(w, resp.Body)
+}
+
+var wakeWait time.Duration
+
+// send forwards the request to Django, retrying for up to wakeWait while Django isn't up yet. Retries are
+// only made when the request can't have reached Django (no connection, or the host's own error page),
+// so a login or registration is never processed twice.
+func send(ctx context.Context, client *http.Client, method, target string, body []byte, auth string) (*http.Response, error) {
+	deadline := time.Now().Add(wakeWait)
+	delay := time.Second
+	for {
+		upstreamReq, err := http.NewRequestWithContext(ctx, method, target, bytes.NewReader(body))
+		if err != nil {
+			return nil, err
+		}
+		// Forward relevant headers, including the bearer token from the client.
+		upstreamReq.Header.Set("Content-Type", "application/json")
+		if auth != "" {
+			upstreamReq.Header.Set("Authorization", auth)
+		}
+		resp, err := client.Do(upstreamReq)
+		if (err == nil && !hostErrorPage(resp)) || (err != nil && !notConnected(err)) || time.Now().Add(delay).After(deadline) {
+			return resp, err
+		}
+		if resp != nil {
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+		}
+		log.Printf("%s not ready yet, retrying in %s", target, delay)
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(delay):
+		}
+		delay = min(delay*2, 5*time.Second)
+	}
+}
+
+// hostErrorPage reports a 502/503 that came from the host, not Django: Django's API always answers in JSON.
+func hostErrorPage(resp *http.Response) bool {
+	return (resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable) &&
+		!strings.HasPrefix(resp.Header.Get("Content-Type"), "application/json")
+}
+
+// notConnected reports a failure to connect (DNS or dial), when nothing was sent.
+func notConnected(err error) bool {
+	var op *net.OpError
+	return errors.As(err, &op) && op.Op == "dial"
 }
 
 // Auth payloads are tiny; anything larger is rejected at the edge.

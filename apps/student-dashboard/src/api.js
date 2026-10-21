@@ -23,10 +23,39 @@ export class ApiError extends Error {
   }
 }
 
+// On free hosting, idle services sleep and take up to a minute to start. Until then the host answers with
+// its own 502/503 page (never JSON, unlike our APIs): nothing reached the service, so it's safe to repeat.
+const isHostErrorPage = (res) =>
+  (res.status === 502 || res.status === 503) && !(res.headers.get("Content-Type") ?? "").includes("json");
+
+async function fetchAwake(url, options) {
+  const deadline = Date.now() + 100_000;
+  for (let delay = 2000; ; delay = Math.min(delay * 2, 6000)) {
+    const res = await fetch(url, options);
+    if (!isHostErrorPage(res) || Date.now() + delay > deadline) return res;
+    await new Promise((resolve) => setTimeout(resolve, delay));
+  }
+}
+
+/** Pings every backend once when the page opens, so sleeping services are up by the time someone signs in. */
+let woken = false;
+export function wakeServers() {
+  if (woken) return;
+  woken = true;
+  for (const url of ["/api/health", "/wake/gateway", "/wake/flow", "/wake/notify"]) {
+    (async () => {
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        if (await fetch(url, { cache: "no-store" }).then((res) => res.ok, () => false)) return;
+        await new Promise((resolve) => setTimeout(resolve, 8000));
+      }
+    })();
+  }
+}
+
 let refreshing = null;
 function refreshTokens() {
   if (!store.refresh) return Promise.resolve(false);
-  refreshing ??= fetch("/api/auth/token/refresh", {
+  refreshing ??= fetchAwake("/api/auth/token/refresh", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ refresh: store.refresh }),
@@ -42,13 +71,14 @@ async function request(path, { method = "GET", body, auth = true, retried = fals
   if (auth && store.access) headers.Authorization = `Bearer ${store.access}`;
   let res;
   try {
-    res = await fetch(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+    res = await fetchAwake(path, { method, headers, body: body ? JSON.stringify(body) : undefined });
   } catch {
     throw new ApiError("Can't reach the health centre server. Check your connection and try again.", 0);
   }
   if (res.status === 401 && auth && !retried && (await refreshTokens())) {
     return request(path, { method, body, auth, retried: true });
   }
+  if (isHostErrorPage(res)) throw new ApiError("The health centre server is still starting up. Please try again in a minute.", res.status);
   const data = await res.json().catch(() => null);
   if (!res.ok) {
     // Field errors look like {"time": ["The clinic takes appointments Mon-Fri..."]}: show the messages.
