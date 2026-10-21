@@ -18,7 +18,7 @@ test("landing page explains the app and leads to sign-in and registration", asyn
 });
 
 test("the wake-up routes reach every backend", async ({ request }) => {
-  for (const path of ["/api/health", "/wake/gateway", "/wake/flow", "/wake/notify"]) {
+  for (const path of ["/api/health", "/wake/gateway", "/wake/flow", "/wake/notify", "/wake-urls"]) {
     expect((await request.get(WEB + path)).status(), path).toBe(200);
   }
 });

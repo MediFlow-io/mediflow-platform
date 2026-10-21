@@ -100,7 +100,11 @@ function Root() {
 }
 
 export default function App() {
-  useEffect(wakeServers, []);
+  useEffect(() => {
+    wakeServers();
+    // A request found a server asleep: wake them again from the browser (see api/wake.js).
+    return onServerWaking((waking) => waking && wakeServers({ again: true }));
+  }, []);
   return (
     <AuthProvider>
       <Root />

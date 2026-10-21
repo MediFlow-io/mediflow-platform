@@ -33,23 +33,37 @@ async function fetchAwake(url, options) {
   for (let delay = 2000; ; delay = Math.min(delay * 2, 6000)) {
     const res = await fetch(url, options);
     if (!isHostErrorPage(res) || Date.now() + delay > deadline) return res;
+    if (delay === 2000) wakeDirect(); // found a service asleep: wake it from the browser
     await new Promise((resolve) => setTimeout(resolve, delay));
   }
 }
 
-/** Pings every backend once when the page opens, so sleeping services are up by the time someone signs in. */
+// Free hosting puts idle services to sleep. On Render a sleeping service only wakes for traffic from the
+// internet, not from our own Nginx (another Render service), so the browser also calls each backend's public
+// health check directly (addresses from /wake-urls; none in Docker). Fire-and-forget.
+const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+async function ping(url, options) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const res = await fetch(url, { cache: "no-store", ...options }).catch(() => null);
+    if (res && (res.ok || res.type === "opaque")) return;
+    await pause(8000);
+  }
+}
+let directUrls = null;
+async function wakeDirect() {
+  directUrls ??= fetch("/wake-urls", { cache: "no-store" })
+    .then((res) => (res.ok ? res.text() : ""))
+    .then((text) => (text.trim().startsWith("<") ? [] : text.split(/\s+/).filter((u) => u.startsWith("https://"))))
+    .catch(() => []);
+  for (const url of await directUrls) ping(url, { mode: "no-cors" });
+}
 let woken = false;
+/** Pings every backend once when the page opens, so sleeping services are up by the time someone signs in. */
 export function wakeServers() {
   if (woken) return;
   woken = true;
-  for (const url of ["/api/health", "/wake/gateway", "/wake/flow", "/wake/notify"]) {
-    (async () => {
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        if (await fetch(url, { cache: "no-store" }).then((res) => res.ok, () => false)) return;
-        await new Promise((resolve) => setTimeout(resolve, 8000));
-      }
-    })();
-  }
+  wakeDirect();
+  for (const url of ["/api/health", "/wake/gateway", "/wake/flow", "/wake/notify"]) ping(url);
 }
 
 let refreshing = null;

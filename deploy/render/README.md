@@ -17,8 +17,11 @@ after another); after that it's normal speed. Render gives 750 free hours a mont
 While the notification service sleeps, live events (e.g. "you've been called") aren't delivered.
 
 What the apps do about it:
-- Opening the web app or student dashboard pings every backend (`/api/health`, `/wake/gateway`, `/wake/flow`,
-  `/wake/notify`), so they are usually awake by the time someone signs in.
+- A sleeping Render service only wakes for traffic from the internet. Calls from another Render service
+  (our Nginx, the gateway) get Render's 502 page and do not wake it. So opening the web app or student
+  dashboard makes the visitor's browser call every backend's public health check directly (the `WAKE_URLS`
+  setting on mediflow-io-web and mediflow-io-student), and again if a request finds a service asleep. They
+  are usually awake by the time someone signs in.
 - A sleeping service answers other services with Render's own 502 page straight away. The gateway retries
   for up to `WAKE_TIMEOUT` (90s), and the apps retry too, with a "server is waking up" notice. Only Render's
   error page is retried, never an answer from our services, so a sign-in or registration is never sent twice.

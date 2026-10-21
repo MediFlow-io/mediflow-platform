@@ -153,6 +153,8 @@ services:
         value: https://mediflow-io-notify.onrender.com
       - key: PROXY_TIMEOUT
         value: 90s
+      - key: WAKE_URLS              # the browser calls these to wake sleeping services (see deploy/render/README.md)
+        value: https://mediflow-io-api.onrender.com/api/health https://mediflow-io-gateway.onrender.com/healthz https://mediflow-io-flow.onrender.com/healthz https://mediflow-io-notify.onrender.com/healthz https://mediflow-io-ai.onrender.com/ai/health
 
   # ---------------------------------------------------------------- student dashboard (React + Nginx)
   - type: web
@@ -176,6 +178,8 @@ services:
         value: https://mediflow-io-notify.onrender.com
       - key: PROXY_TIMEOUT
         value: 90s
+      - key: WAKE_URLS              # the browser calls these to wake sleeping services (see deploy/render/README.md)
+        value: https://mediflow-io-api.onrender.com/api/health https://mediflow-io-gateway.onrender.com/healthz https://mediflow-io-flow.onrender.com/healthz https://mediflow-io-notify.onrender.com/healthz https://mediflow-io-ai.onrender.com/ai/health
 
   # ---------------------------------------------------------------- admin console (Laravel)
   - type: web
