@@ -148,8 +148,9 @@ export async function request(path, { method = "GET", body, auth = true, retried
 }
 
 export const authApi = {
-  loginStudent: (unique_id, password) =>
-    request("/api/auth/login", { method: "POST", body: { unique_id, password }, auth: false }),
+  // portal: "staff" or "student". The server refuses people signing in on the other one's page.
+  login: (unique_id, password, portal) =>
+    request("/api/auth/login", { method: "POST", body: { unique_id, password, portal }, auth: false }),
 
   registerStudent: (payload) =>
     request("/api/auth/register/student", { method: "POST", body: payload, auth: false }),

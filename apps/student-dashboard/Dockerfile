@@ -7,6 +7,9 @@ RUN npm ci
 COPY index.html vite.config.js eslint.config.js ./
 COPY public ./public
 COPY src ./src
+# Where staff are sent if they open this app (the staff portal).
+ARG VITE_STAFF_PORTAL_URL=""
+ENV VITE_STAFF_PORTAL_URL=$VITE_STAFF_PORTAL_URL
 RUN npm run build
 
 FROM nginx:1.27-alpine

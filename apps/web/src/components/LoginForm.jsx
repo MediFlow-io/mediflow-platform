@@ -54,11 +54,11 @@ export default function LoginForm({ onSuccess }) {
       {error && <div className="error-box">{error}</div>}
 
       <div className="field">
-        <label htmlFor="unique_id">Matric No. or Staff ID</label>
+        <label htmlFor="unique_id">Staff ID</label>
         <input
           id="unique_id"
           type="text"
-          placeholder="SEN/22/9269"
+          autoComplete="username"
           value={uniqueId}
           onChange={(e) => setUniqueId(e.target.value)}
           required
@@ -70,6 +70,7 @@ export default function LoginForm({ onSuccess }) {
         <input
           id="password"
           type="password"
+          autoComplete="current-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required

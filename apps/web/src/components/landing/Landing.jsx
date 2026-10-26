@@ -92,7 +92,7 @@ function Brand() {
   );
 }
 
-export default function Landing({ studentDashboardUrl }) {
+export default function Landing({ studentPortalUrl }) {
   const root = useRef(null);
   const [menuOpen, setMenuOpen] = useState(false);
   useReveal(root);
@@ -110,7 +110,8 @@ export default function Landing({ studentDashboardUrl }) {
             <a href="#demo">How it works</a>
             <a href="#features">Features</a>
             <a href="#roles">Who it's for</a>
-            <a className="lp-btn lp-btn-small" href="#signin">Sign in</a>
+            <a href={studentPortalUrl}>Student portal</a>
+            <a className="lp-btn lp-btn-small" href="/login">Staff sign-in</a>
           </nav>
         </div>
       </header>
@@ -130,8 +131,8 @@ export default function Landing({ studentDashboardUrl }) {
                 a live queue, notes and prescriptions, with students kept informed on their phones.
               </p>
               <div className="lp-cta lp-rise" style={{ animationDelay: "240ms" }}>
-                <a className="lp-btn" href="#signin">Sign in</a>
-                <a className="lp-btn lp-btn-ghost" href="#register">Student? Create an account</a>
+                <a className="lp-btn" href={studentPortalUrl}>I'm a student</a>
+                <a className="lp-btn lp-btn-ghost" href="/login">Staff sign-in</a>
               </div>
               <a className="lp-watch lp-rise" style={{ animationDelay: "320ms" }} href="#demo">
                 <span className="lp-play" aria-hidden="true" /> See how it works in a minute
@@ -227,13 +228,13 @@ export default function Landing({ studentDashboardUrl }) {
               <div className="lp-start-card" data-reveal>
                 <h3>Students</h3>
                 <p>Create an account with your matriculation number, then book visits and follow the queue from your phone.</p>
-                <a className="lp-btn" href="#register">Create a student account</a>
-                <a className="lp-link" href={studentDashboardUrl}>Already registered? Open the student dashboard →</a>
+                <a className="lp-btn" href={`${studentPortalUrl}/register`}>Create a student account</a>
+                <a className="lp-link" href={studentPortalUrl}>Already registered? Sign in on the student portal →</a>
               </div>
               <div className="lp-start-card" data-reveal style={{ transitionDelay: "90ms" }}>
                 <h3>Staff</h3>
                 <p>Sign in with the staff ID your administrator gave you. Your role decides what you see.</p>
-                <a className="lp-btn lp-btn-dark" href="#signin">Staff sign-in</a>
+                <a className="lp-btn lp-btn-dark" href="/login">Staff sign-in</a>
                 <span className="lp-note">No account yet? Ask your clinic administrator.</span>
               </div>
             </div>

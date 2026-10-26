@@ -45,6 +45,9 @@ services:
 
   student:
     <<: *restart
+    build:
+      args:
+        VITE_STAFF_PORTAL_URL: ${PUBLIC_SCHEME:-http}://${PUBLIC_HOST}:${WEB_PORT:-8080}
 
   admin-console:
     <<: *restart

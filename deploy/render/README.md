@@ -26,6 +26,16 @@ What the apps do about it:
   for up to `WAKE_TIMEOUT` (90s), and the apps retry too, with a "server is waking up" notice. Only Render's
   error page is retried, never an answer from our services, so a sign-in or registration is never sent twice.
 
+## Starting again from scratch
+
+To throw away an existing deployment (for example because its secrets were exposed) and rebuild it:
+
+1. Render: open the Blueprint (**Blueprints** in the dashboard) → **Settings → Delete Blueprint**, and tick
+   the option to delete its services. Check **Services** afterwards and delete any `mediflow-io-*` left, so
+   the names are free again.
+2. Neon: delete the old project (**Settings → Delete project**). Everything in that database is lost.
+3. Follow steps 1–4 below with new values. Use new secrets: run `make-secrets.sh` again.
+
 ## 1. Neon: create the database (5 min)
 
 1. Sign in at <https://console.neon.tech> (GitHub login works).
@@ -43,7 +53,8 @@ In Git Bash, in the `mediflow-platform` folder:
 bash deploy/render/make-secrets.sh > deploy/render/secrets.local.txt
 ```
 
-This file holds `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` and `APP_KEY`. It's git-ignored; keep it private.
+This file holds `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY`, `DEMO_PASSWORD` and `APP_KEY`. Files ending in
+`.local.txt` here are git-ignored; keep them private.
 
 ## 3. Render: create everything from the Blueprint (20 min)
 
@@ -58,6 +69,7 @@ This file holds `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` and `APP_KEY`. It's git-igno
    | mediflow-io-api | `DATABASE_URL` | the Neon connection string |
    | mediflow-io-api | `JWT_PRIVATE_KEY` | from `secrets.local.txt`, from `-----BEGIN PRIVATE KEY-----` to `-----END PRIVATE KEY-----` |
    | mediflow-io-api | `JWT_PUBLIC_KEY` | from `secrets.local.txt`, the PUBLIC KEY block |
+   | mediflow-io-api | `DEMO_PASSWORD` | from `secrets.local.txt`: the password of the demo accounts |
    | mediflow-io-flow | `DATABASE_URL` | the same Neon connection string |
    | mediflow-io-notify | `DATABASE_URL` | the same Neon connection string |
    | mediflow-io-admin | `APP_KEY` | the `base64:…` line from `secrets.local.txt` |
@@ -69,9 +81,12 @@ This file holds `JWT_PRIVATE_KEY`, `JWT_PUBLIC_KEY` and `APP_KEY`. It's git-igno
 
 ## 4. Sign in
 
-- Staff app: `https://mediflow-io-web.onrender.com`, user **admin**, password: Render dashboard →
-  **mediflow-io-api → Environment → `DEMO_PASSWORD`** (generated for you). The same password works for
-  `manager`, `doctor` and `nurse`.
+- Staff portal: `https://mediflow-io-web.onrender.com/login`, user **admin**, password: the
+  `DEMO_PASSWORD` you entered. The same password works for `manager`, `doctor` and `nurse`.
+  The landing page is at `https://mediflow-io-web.onrender.com`.
+- Student portal: `https://mediflow-io-student.onrender.com`. Students create their own account at
+  `/register` and sign in there. Staff accounts are refused on the student portal, and student accounts
+  on the staff portal.
 - Admin console: `https://mediflow-io-admin.onrender.com`, same `admin` account.
 - Students register in the staff app's sign-in page, then use the student dashboard.
 
