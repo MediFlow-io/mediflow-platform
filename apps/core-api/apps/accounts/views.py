@@ -82,6 +82,20 @@ class JwksView(APIView):
         return Response({"keys": [public_jwk(settings.JWT_PUBLIC_KEY)]})
 
 
+# Staff and students sign in on separate pages. A page that names its portal only accepts its own people,
+# so a student can't land in the staff app (or the reverse). Clients that don't say are unaffected.
+WRONG_PORTAL = {
+    "staff": "This is the staff sign-in. Students sign in on the student portal.",
+    "student": "This is the student portal. Staff sign in on the staff portal.",
+}
+
+
+def wrong_portal(user, portal):
+    if portal not in WRONG_PORTAL:
+        return False
+    return (user.role == User.Role.STUDENT) != (portal == "student")
+
+
 class LoginView(APIView):
     permission_classes = [permissions.AllowAny]
     throttle_classes = [LoginRateThrottle]
@@ -102,6 +116,11 @@ class LoginView(APIView):
         if not user or not user.is_active:
             record(None, "auth.login_failed", "user", username)
             return Response({"detail": "Invalid credentials."}, status=401)
+
+        portal = request.data.get("portal")
+        if wrong_portal(user, portal):
+            record(user, "auth.wrong_portal", "user", user.id, portal=portal)
+            return Response({"detail": WRONG_PORTAL[portal], "code": "wrong_portal"}, status=403)
 
         if mfa.enabled_for(user):
             # Password is right; tokens only after the authenticator code (POST /api/auth/mfa/verify).

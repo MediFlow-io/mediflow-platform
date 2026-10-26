@@ -1,2 +1,2 @@
-secrets.local.txt
-demo-password.local.txt
+# Local secret files (generated values for the Render form). Never commit.
+*.local.txt

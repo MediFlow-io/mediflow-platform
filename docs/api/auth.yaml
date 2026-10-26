@@ -22,6 +22,10 @@ paths:
               properties:
                 unique_id: {type: string, description: "Also accepted as staffId, username or email."}
                 password: {type: string}
+                portal:
+                  type: string
+                  enum: [staff, student]
+                  description: "The page signing in. A student on the staff portal, or staff on the student portal, gets 403 with code wrong_portal. Omit to accept anyone."
       description: |
         If the account has two-step sign-in on, the answer is `{mfa_required: true, mfa_token, detail}` and no
         tokens: send the code to /api/auth/mfa/verify within 5 minutes. If the account's role is in
@@ -36,6 +40,7 @@ paths:
                   - $ref: "#/components/schemas/User"
                   - $ref: "#/components/schemas/TokenPair"
         "401": {$ref: "#/components/responses/Error"}
+        "403": {description: "Right password, wrong portal: {detail, code: wrong_portal}"}
         "429": {description: Too many attempts (per IP and username)}
   /api/auth/mfa/verify:
     post:

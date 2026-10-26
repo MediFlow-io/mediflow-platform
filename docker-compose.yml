@@ -106,7 +106,10 @@ services:
       notifications: {condition: service_healthy}
 
   student:
-    build: ./apps/student-dashboard
+    build:
+      context: ./apps/student-dashboard
+      args:
+        VITE_STAFF_PORTAL_URL: http://localhost:${WEB_PORT:-8080}
     ports:
       - "${STUDENT_PORT:-8081}:80"
     depends_on:

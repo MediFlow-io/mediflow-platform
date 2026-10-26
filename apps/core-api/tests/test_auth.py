@@ -97,6 +97,23 @@ class AuthTests(TestCase):
         self.assertEqual(stale.status_code, 401)
         self.obtain("doctor", "another-password-456")
 
+    def test_each_portal_only_accepts_its_own_people(self):
+        User.objects.create_user(username="SEN/22/0001", password=PASSWORD, role="student")
+
+        def login(username, portal, password=PASSWORD):
+            return APIClient().post("/api/auth/login", {"unique_id": username, "password": password, "portal": portal}, format="json")
+
+        refused = login("SEN/22/0001", "staff")
+        self.assertEqual(refused.status_code, 403)
+        self.assertEqual(refused.data["code"], "wrong_portal")
+        self.assertNotIn("access", refused.data)
+        self.assertEqual(login("doctor", "student").status_code, 403)
+        self.assertEqual(login("SEN/22/0001", "student").status_code, 200)
+        self.assertEqual(login("doctor", "staff").status_code, 200)
+        self.assertEqual(login("doctor", None).status_code, 200)  # clients that don't name a portal
+        # A wrong password is still just "invalid credentials": the portal check never reveals the role.
+        self.assertEqual(login("SEN/22/0001", "staff", password="nope").status_code, 401)
+
     def test_failed_login_is_audited(self):
         response = self.client.post("/api/auth/login", {"unique_id": "admin", "password": "wrong"}, format="json")
         self.assertEqual(response.status_code, 401)

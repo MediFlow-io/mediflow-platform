@@ -3,8 +3,11 @@ import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, Sh
 import {
   cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyMedications, getMyQueue, getNotificationPreferences,
   getNotifications, isSignedIn, setNotificationPreferences,
-  markAllNotificationsRead, markNotificationRead, requestAppointment, signIn, signOut, wakeServers,
+  markAllNotificationsRead, markNotificationRead, register, requestAppointment, signIn, signOut, wakeServers,
 } from "./api";
+
+// The staff portal (apps/web). Staff sign in there; this app is for students only.
+const STAFF_PORTAL_URL = (import.meta.env.VITE_STAFF_PORTAL_URL || "http://localhost:5173").replace(/\/$/, "");
 
 // Mediflow palette
 const C = {
@@ -434,12 +437,52 @@ function NotAvailable({ title, children }) {
   return <Card title={title}><Note>{children}</Note></Card>;
 }
 
-function SignIn({ onSignedIn }) {
+/** The sign-in and registration pages share this frame. */
+function AuthPage({ title, subtitle, children, footer }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-4 p-5" style={{ background: C.mist }}>
+      <div className="bg-white rounded-3xl p-8 w-full max-w-sm grid gap-4" style={{ border: `1px solid ${C.line}` }}>
+        <Logo />
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: C.ink, fontFamily: "Georgia, serif" }}>{title}</h1>
+          <p className="text-sm" style={{ color: "#5B6F8F" }}>{subtitle}</p>
+        </div>
+        {children}
+      </div>
+      <div className="text-sm text-center grid gap-1" style={{ color: "#5B6F8F" }}>{footer}</div>
+    </div>
+  );
+}
+
+const inputClass = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
+const inputStyle = { border: `1px solid ${C.line}` };
+const linkStyle = { color: C.cobalt, fontWeight: 600 };
+
+function FormError({ error }) {
+  if (!error) return null;
+  return <div role="alert" className="rounded-xl p-3 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>;
+}
+
+function SubmitButton({ busy, idle, working }) {
+  return (
+    <>
+      <button disabled={busy} className="rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ background: C.ink }}>
+        {busy ? working : idle}
+      </button>
+      {busy && <p role="status" className="text-xs text-center" style={{ color: "#5B6F8F" }}>If the server was idle it can take up to a minute to wake up.</p>}
+    </>
+  );
+}
+
+const staffLink = (
+  <span>Staff member? <a href={`${STAFF_PORTAL_URL}/login`} style={linkStyle}>Use the staff portal</a></span>
+);
+
+function SignIn({ onSignedIn, go }) {
   const [id, setId] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
-  const inp = "mt-1 w-full rounded-xl px-3 py-2 bg-white";
 
   async function submit(e) {
     e.preventDefault();
@@ -456,26 +499,84 @@ function SignIn({ onSignedIn }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-5" style={{ background: C.mist }}>
-      <form onSubmit={submit} className="bg-white rounded-3xl p-8 w-full max-w-sm grid gap-4" style={{ border: `1px solid ${C.line}` }}>
-        <Logo />
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: C.ink, fontFamily: "Georgia, serif" }}>Student health</h1>
-          <p className="text-sm" style={{ color: "#5B6F8F" }}>Sign in with your matriculation number.</p>
-        </div>
-        {error && <div role="alert" className="rounded-xl p-3 text-sm" style={{ background: "#FFE9E9", color: "#B23A3A" }}>{error}</div>}
+    <AuthPage
+      title="Student health"
+      subtitle="Sign in with your matriculation number."
+      footer={<>
+        <span>New here? <a href="/register" onClick={go("/register")} style={linkStyle}>Create a student account</a></span>
+        {staffLink}
+      </>}
+    >
+      <form onSubmit={submit} className="grid gap-4">
+        <FormError error={error} />
         <label className="text-sm">Matric number
-          <input className={inp} style={{ border: `1px solid ${C.line}` }} value={id} onChange={(e) => setId(e.target.value)} required autoComplete="username" />
+          <input className={inputClass} style={inputStyle} value={id} onChange={(e) => setId(e.target.value)} required autoComplete="username" />
         </label>
         <label className="text-sm">Password
-          <input type="password" className={inp} style={{ border: `1px solid ${C.line}` }} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
+          <input type="password" className={inputClass} style={inputStyle} value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
         </label>
-        <button disabled={busy} className="rounded-full py-2.5 text-sm font-semibold text-white disabled:opacity-50" style={{ background: C.ink }}>
-          {busy ? "Signing in…" : "Sign in"}
-        </button>
-        {busy && <p role="status" className="text-xs text-center" style={{ color: "#5B6F8F" }}>If the server was idle it can take up to a minute to wake up.</p>}
+        <SubmitButton busy={busy} idle="Sign in" working="Signing in…" />
       </form>
-    </div>
+    </AuthPage>
+  );
+}
+
+function Register({ onSignedIn, go }) {
+  const [form, setForm] = useState({ uniqueId: "", name: "", email: "", password: "", confirm: "" });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const field = (key) => ({ value: form[key], onChange: (e) => setForm((f) => ({ ...f, [key]: e.target.value })) });
+
+  async function submit(e) {
+    e.preventDefault();
+    setError(null);
+    if (form.password !== form.confirm) {
+      setError("The two passwords don't match.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await register({ uniqueId: form.uniqueId.trim(), name: form.name.trim(), email: form.email.trim(), password: form.password });
+      onSignedIn();
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AuthPage
+      title="Create your account"
+      subtitle="For students. You will sign in with your matriculation number."
+      footer={<>
+        <span>Already registered? <a href="/" onClick={go("/")} style={linkStyle}>Sign in</a></span>
+        {staffLink}
+      </>}
+    >
+      <form onSubmit={submit} className="grid gap-4">
+        <FormError error={error} />
+        <label className="text-sm">Full name
+          <input className={inputClass} style={inputStyle} {...field("name")} required autoComplete="name" />
+        </label>
+        <label className="text-sm">Matric number
+          <input className={inputClass} style={inputStyle} {...field("uniqueId")} required placeholder="SEN/22/9269" autoComplete="username" />
+        </label>
+        <label className="text-sm">Email
+          <input type="email" className={inputClass} style={inputStyle} {...field("email")} required autoComplete="email" />
+        </label>
+        <label className="text-sm">Password
+          <input type="password" className={inputClass} style={inputStyle} {...field("password")} required minLength={8} autoComplete="new-password" />
+        </label>
+        <label className="text-sm">Confirm password
+          <input type="password" className={inputClass} style={inputStyle} {...field("confirm")} required autoComplete="new-password" />
+        </label>
+        <SubmitButton busy={busy} idle="Create account" working="Creating your account…" />
+        <p className="text-xs" style={{ color: "#5B6F8F" }}>
+          The health centre links your health record to this account at your first visit.
+        </p>
+      </form>
+    </AuthPage>
   );
 }
 
@@ -618,9 +719,32 @@ function Dashboard({ onSignedOut }) {
   );
 }
 
+// "/" is sign-in (or the dashboard once signed in) and "/register" creates an account.
+const currentPath = () => window.location.pathname.replace(/\/$/, "") || "/";
+
+function usePath() {
+  const [path, setPath] = useState(currentPath);
+  useEffect(() => {
+    const update = () => setPath(currentPath());
+    window.addEventListener("popstate", update);
+    return () => window.removeEventListener("popstate", update);
+  }, []);
+  const navigate = useCallback((to) => {
+    if (currentPath() !== to) window.history.pushState(null, "", to);
+    setPath(to);
+  }, []);
+  return [path, navigate];
+}
+
 export default function App() {
   const [signedIn, setSignedIn] = useState(isSignedIn());
-  const signedOut = useCallback(() => setSignedIn(false), []);
+  const [path, navigate] = usePath();
   useEffect(wakeServers, []);
-  return signedIn ? <Dashboard onSignedOut={signedOut} /> : <SignIn onSignedIn={() => setSignedIn(true)} />;
+  const signedOut = useCallback(() => { setSignedIn(false); navigate("/"); }, [navigate]);
+  const signedInNow = useCallback(() => { setSignedIn(true); navigate("/"); }, [navigate]);
+  // Plain links that switch pages without reloading.
+  const go = (to) => (e) => { e.preventDefault(); navigate(to); };
+  if (signedIn) return <Dashboard onSignedOut={signedOut} />;
+  if (path === "/register") return <Register onSignedIn={signedInNow} go={go} />;
+  return <SignIn onSignedIn={signedInNow} go={go} />;
 }

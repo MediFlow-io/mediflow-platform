@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Prints the secrets Render asks for when you create the Blueprint. Run it in Git Bash (or any shell
+# Prints the secrets Render asks for when you create the Blueprint (all but the Neon connection string). Run it in Git Bash (or any shell
 # with openssl). Paste each value into Render (multi-line values are fine: copy from -----BEGIN to
 # -----END----- included). Keep the output private; never commit it.
 set -euo pipefail
@@ -11,6 +11,9 @@ cat "$dir/private.pem"
 echo
 echo "===== JWT_PUBLIC_KEY (service mediflow-io-api)"
 cat "$dir/public.pem"
+echo
+echo "===== DEMO_PASSWORD (service mediflow-io-api): password of the demo accounts admin, manager, doctor, nurse"
+echo "Mf-$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | head -c 14)"
 echo
 echo "===== APP_KEY (service mediflow-io-admin)"
 echo "base64:$(openssl rand -base64 32)"

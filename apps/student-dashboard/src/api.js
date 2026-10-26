@@ -104,10 +104,17 @@ async function request(path, { method = "GET", body, auth = true, retried = fals
 
 export const isSignedIn = () => Boolean(store.access);
 
+// portal "student": the server refuses staff accounts here (they use the staff portal).
 export async function signIn(uniqueId, password) {
-  const data = await request("/api/auth/login", { method: "POST", body: { unique_id: uniqueId, password }, auth: false });
+  const data = await request("/api/auth/login", { method: "POST", body: { unique_id: uniqueId, password, portal: "student" }, auth: false });
   store.set(data);
   return data;
+}
+
+/** Creates a student account, then signs in with it. */
+export async function register({ uniqueId, name, email, password }) {
+  await request("/api/auth/register/student", { method: "POST", body: { unique_id: uniqueId, name, email, password }, auth: false });
+  return signIn(uniqueId, password);
 }
 
 export async function signOut() {

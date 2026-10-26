@@ -48,8 +48,8 @@ services:
         value: "60"
       - key: SEED_DEMO              # demo departments and accounts (created once)
         value: "true"
-      - key: DEMO_PASSWORD          # password of the demo accounts (admin, manager, doctor, nurse)
-        generateValue: true
+      - key: DEMO_PASSWORD          # password of the demo accounts (admin, manager, doctor, nurse); make-secrets.sh
+        sync: false
       - fromGroup: mediflow-shared
 
   # ---------------------------------------------------------------- AI service (FastAPI)
@@ -141,7 +141,7 @@ services:
     envVars:
       - key: PORT
         value: "80"
-      - key: VITE_STUDENT_DASHBOARD_URL   # build-time: where students go after signing in
+      - key: VITE_STUDENT_DASHBOARD_URL   # build-time: the student portal (students sign in and register there)
         value: https://mediflow-io-student.onrender.com
       - key: API_URL
         value: https://mediflow-io-api.onrender.com
@@ -168,6 +168,8 @@ services:
     envVars:
       - key: PORT
         value: "80"
+      - key: VITE_STAFF_PORTAL_URL       # build-time: where staff are sent from the student portal
+        value: https://mediflow-io-web.onrender.com
       - key: API_URL
         value: https://mediflow-io-api.onrender.com
       - key: GATEWAY_URL

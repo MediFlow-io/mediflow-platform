@@ -23,7 +23,13 @@ export function AuthProvider({ children }) {
     setStatus("signed-out");
   }, []);
 
-  useEffect(() => onSessionExpired(signOutLocally), [signOutLocally]);
+  // After signing out (or the session running out), show the staff sign-in rather than the landing page.
+  const backToSignIn = useCallback(() => {
+    if (window.location.pathname !== "/login") window.history.replaceState(null, "", "/login");
+    signOutLocally();
+  }, [signOutLocally]);
+
+  useEffect(() => onSessionExpired(backToSignIn), [backToSignIn]);
 
   useEffect(() => {
     if (status !== "checking") return;
@@ -45,7 +51,7 @@ export function AuthProvider({ children }) {
 
   // Returns { mfaRequired, mfaToken } when the account uses two-step sign-in; call verifyMfa next.
   const login = useCallback(async (unique_id, password) => {
-    const data = await authApi.loginStudent(unique_id, password);
+    const data = await authApi.login(unique_id, password, "staff");
     if (data.mfa_required) return { mfaRequired: true, mfaToken: data.mfa_token };
     return finishSignIn(data);
   }, [finishSignIn]);
@@ -59,9 +65,9 @@ export function AuthProvider({ children }) {
     } catch {
       // Signing out locally is what matters; the refresh token expires on its own.
     } finally {
-      signOutLocally();
+      backToSignIn();
     }
-  }, [signOutLocally]);
+  }, [backToSignIn]);
 
   return (
     <AuthContext.Provider value={{ user, status, isAuthenticated: status === "signed-in", login, verifyMfa, logout }}>
