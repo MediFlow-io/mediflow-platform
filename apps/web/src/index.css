@@ -402,3 +402,8 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .portal-switch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--slate); }
 .portal-switch a { color: var(--teal); font-weight: 500; text-decoration: none; }
 .portal-switch a:hover { text-decoration: underline; }
+
+.ai-suggest { border: 1px dashed var(--line); border-radius: var(--radius); padding: 10px 12px; margin: 10px 0; background: #f7faf9; }
+.ai-result { margin-top: 8px; }
+.ai-drug { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.warn-text { color: #8a5a00; }

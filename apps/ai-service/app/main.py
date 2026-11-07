@@ -14,7 +14,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 
 from .config import load_settings
 from .first_aid import answer_question
-from . import flow_insights, news2
+from . import flow_insights, news2, prescribing
 from .schemas import (AskRequest, AskResponse, BottleneckRequest, BottleneckResponse, RiskScoreRequest,
                       RiskScoreResponse, TriageRequest, TriageResponse, WaitTimeRequest, WaitTimeResponse)
 from .triage import MODEL_VERSION, suggest_esi
@@ -69,7 +69,8 @@ def require_internal_token(x_internal_token: str = Header(default="")) -> None:
 @app.get("/ai/health")
 def health() -> dict:
     return {"status": "ok", "model_version": MODEL_VERSION,
-            "models": {"triage": MODEL_VERSION, "risk_score": news2.MODEL_VERSION, "flow": flow_insights.MODEL_VERSION}}
+            "models": {"triage": MODEL_VERSION, "risk_score": news2.MODEL_VERSION, "flow": flow_insights.MODEL_VERSION,
+                       "prescribing": prescribing.MODEL_VERSION}}
 
 
 @app.get("/metrics", include_in_schema=False)
@@ -109,3 +110,9 @@ def wait_time(body: WaitTimeRequest) -> WaitTimeResponse:
 @app.post("/ai/bottleneck", response_model=BottleneckResponse, dependencies=[Depends(require_internal_token)])
 def bottleneck(body: BottleneckRequest) -> BottleneckResponse:
     return BottleneckResponse(**flow_insights.bottlenecks(body))
+
+
+@app.post("/ai/drug-suggestions", response_model=prescribing.DrugSuggestionResponse,
+          dependencies=[Depends(require_internal_token)])
+def drug_suggestions(body: prescribing.DrugSuggestionRequest) -> prescribing.DrugSuggestionResponse:
+    return prescribing.suggest(body)

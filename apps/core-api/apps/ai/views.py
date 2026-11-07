@@ -1,3 +1,5 @@
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework.response import Response
 from rest_framework.throttling import UserRateThrottle
 from rest_framework.views import APIView
@@ -104,3 +106,46 @@ class InsightsView(APIView):
         return Response({"periodDays": numbers["period_days"], "generatedAt": numbers["generated_at"],
                          "departments": departments, "findings": found.get("findings", []),
                          "modelVersion": found.get("model_version")})
+
+
+class DrugSuggestionsView(APIView):
+    """POST /api/ai/drug-suggestions {visit, diagnoses?, pregnant?}: drugs for the visit's diagnoses (doctors only).
+
+    Sends the AI service only what it needs to rule drugs out: diagnoses, allergies, long-term conditions, age
+    and sex. Never the name or any record number. Advisory only: nothing is prescribed here.
+    """
+    throttle_classes = [AIThrottle]
+
+    def post(self, request):
+        from apps.emr.models import Diagnosis
+        from apps.patients.models import Visit
+
+        if not has_role(request.user, {User.Role.DOCTOR}):
+            return Response({"detail": "Only doctors can request drug suggestions."}, status=403)
+        visit = get_object_or_404(Visit.objects.select_related("patient"), pk=request.data.get("visit"))
+        patient = visit.patient
+        diagnoses = [f"{d.description} ({d.code})" if d.code else d.description
+                     for d in visit.diagnoses.exclude(status=Diagnosis.Status.ENTERED_IN_ERROR)]
+        extra = request.data.get("diagnoses") or []
+        if not isinstance(extra, list) or not all(isinstance(x, str) and 0 < len(x.strip()) <= 200 for x in extra):
+            return Response({"detail": "diagnoses must be a list of short texts."}, status=400)
+        diagnoses = (diagnoses + [x.strip() for x in extra])[:10]
+        if not diagnoses:
+            return Response({"detail": "Add a diagnosis first, or type one to get suggestions."}, status=400)
+        age = None
+        if patient.date_of_birth:
+            today = timezone.localdate()
+            born = patient.date_of_birth
+            age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+        payload = {"diagnoses": diagnoses, "allergies": (patient.allergies or "")[:500],
+                   "chronic_conditions": list(patient.chronic_conditions or [])[:20], "age_years": age,
+                   "sex": patient.sex or None, "pregnant": bool(request.data.get("pregnant"))}
+        try:
+            result = client.call("/ai/drug-suggestions", payload)
+        except client.AIRejected:
+            return Response(REJECTED, status=400)
+        except client.AIUnavailable:
+            return Response(UNAVAILABLE, status=503)
+        record(request.user, "ai.drugs_suggested", "visit", visit.pk, suggestions=len(result.get("suggestions", [])),
+               model_version=result.get("model_version"))
+        return Response(result)
