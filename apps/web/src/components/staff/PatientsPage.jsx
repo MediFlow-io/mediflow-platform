@@ -6,6 +6,7 @@ import { can } from "../../lib/roles";
 import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
 import BookAppointmentForm from "./BookAppointmentForm";
 import CheckInForm from "./CheckInForm";
+import ClinicalHistory from "./ClinicalHistory";
 import PatientForm from "./PatientForm";
 
 function useDebounced(value, ms = 300) {
@@ -133,6 +134,13 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
       <PatientForm key={editing ? "edit" : "view"} patient={p} readOnly={!editing} canLink={canEdit}
         onCancel={() => setEditing(false)}
         onSaved={() => { setEditing(false); patient.reload(); onSaved(`${p.fullName}'s record was updated.`); }} />
+
+      {can(user, "readRecord") && (
+        <>
+          <h3>Clinical history</h3>
+          <ClinicalHistory patientId={p.id} />
+        </>
+      )}
 
       <h3>Visits</h3>
       <ErrorBox error={visits.error} onRetry={visits.reload} />

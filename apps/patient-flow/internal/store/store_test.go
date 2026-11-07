@@ -323,7 +323,8 @@ func TestReportRowsRange(t *testing.T) {
 	must(t, err)
 	rows, err := f.s.ReportRows(ctx, time.Now().Add(-time.Hour), time.Now().Add(time.Hour))
 	must(t, err)
-	if len(rows) != 1 || rows[0].DepartmentName != "Outpatient" || rows[0].ESI != 2 || rows[0].StartedAt == nil {
+	if len(rows) != 1 || rows[0].DepartmentName != "Outpatient" || rows[0].ESI != 2 || rows[0].StartedAt == nil ||
+		rows[0].ClinicianName == nil || *rows[0].ClinicianName != "Nurse" {
 		t.Fatalf("report rows: %+v", rows)
 	}
 	if rows, _ := f.s.ReportRows(ctx, time.Now().Add(time.Hour), time.Now().Add(2*time.Hour)); len(rows) != 0 {

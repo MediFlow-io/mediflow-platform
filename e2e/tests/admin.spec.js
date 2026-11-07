@@ -42,3 +42,16 @@ test("admin uses overview, audit log, reports and departments", async ({ page })
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page.getByText("You have signed out.")).toBeVisible();
 });
+
+test("flow report shows targets, bottlenecks and workload, and downloads as PDF", async ({ page }) => {
+  await signIn(page, "admin", "admin123");
+  await page.getByRole("link", { name: "Flow reports", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Seen within ESI target" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Where the time goes" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Clinician workload" })).toBeVisible();
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("link", { name: "Download PDF" }).click()]);
+  expect(download.suggestedFilename()).toMatch(/^mediflow-flow-\d{4}-\d{2}-\d{2}-to-\d{4}-\d{2}-\d{2}\.pdf$/);
+  const path = await download.path();
+  const { readFileSync } = await import("node:fs");
+  expect(readFileSync(path).subarray(0, 4).toString()).toBe("%PDF");
+});

@@ -18,7 +18,9 @@ noted, read its tables without writing to them.
 | Domain | Owner (only writer) | Code |
 |---|---|---|
 | Accounts, login, JWT issuing, roles | Django | `apps/core-api` (accounts) |
-| Patient records, student ↔ record link | Django | `apps/core-api` (patients) |
+| Patient records, student ↔ record link, payment category, long-term conditions | Django | `apps/core-api` (patients) |
+| **Clinical records (EMR Lite): notes, diagnoses, prescriptions, referrals, admissions** | **Django** | `apps/core-api` (emr), under `/api/emr` |
+| **Clinic settings: hours, holidays, queue rules, staff rota** | **Django** (stored), Laravel (edits) | `apps/core-api` (clinic) |
 | Departments | Django (admin) | `apps/core-api` |
 | **Visits: check-in, call/start/complete/cancel** | **Go** | `apps/patient-flow` |
 | **Queue, live updates, flow dashboard** | **Go** | `apps/patient-flow` |

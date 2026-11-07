@@ -77,6 +77,7 @@ export const getMyHealth = () => request("/api/me/health");
 export const getMyAppointments = () => request("/api/appointments/mine");
 // Queue position and a rough wait estimate, from the Go patient-flow service.
 export const getMyQueue = () => request("/api/queue/me");
+export const getMyMedications = () => request("/api/me/medications");
 export const getDepartments = () => request("/api/departments");
 export const requestAppointment = (body) => request("/api/appointments", { method: "POST", body });
 export const cancelAppointment = (id) => request(`/api/appointments/${id}/cancel`, { method: "POST" });

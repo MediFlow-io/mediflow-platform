@@ -20,6 +20,7 @@ from apps.operations.views import HealthView
 from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, TriageSuggestView
 from apps.clinic import views as clinic
+from apps.emr import views as emr
 
 router = DefaultRouter()
 router.trailing_slash = ""  # Existing MediFlow frontend calls /api/patients, not /api/patients/.
@@ -57,5 +58,17 @@ urlpatterns = [
     path("api/clinic/holidays/<int:pk>", clinic.HolidayDetailView.as_view()),
     path("api/clinic/shifts", clinic.ShiftListView.as_view()),
     path("api/clinic/shifts/<int:pk>", clinic.ShiftDetailView.as_view()),
+    # EMR Lite (clinical records). Not under /api/visits, which is the Go service's.
+    path("api/emr/visits/<int:visit_id>", emr.VisitRecordView.as_view()),
+    path("api/emr/visits/<int:visit_id>/consultation", emr.ConsultationView.as_view()),
+    path("api/emr/visits/<int:visit_id>/diagnoses", emr.DiagnosisCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/prescriptions", emr.PrescriptionCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/referrals", emr.ReferralCreateView.as_view()),
+    path("api/emr/visits/<int:visit_id>/<str:action>", emr.AdmissionView.as_view()),
+    path("api/emr/diagnoses/<int:pk>/entered-in-error", emr.DiagnosisErrorView.as_view()),
+    path("api/emr/prescriptions", emr.PrescriptionListView.as_view()),
+    path("api/emr/prescriptions/<int:pk>/<str:action>", emr.PrescriptionActionView.as_view()),
+    path("api/emr/patients/<int:patient_id>/history", emr.PatientHistoryView.as_view()),
+    path("api/me/medications", emr.MyMedicationsView.as_view()),
     path("api/", include(router.urls)),
 ]

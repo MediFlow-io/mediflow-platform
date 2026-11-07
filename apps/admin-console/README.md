@@ -7,6 +7,7 @@ Server-rendered admin console for MediFlow **administrators**:
 | Overview | Today's flow numbers, check-ins over the last 7 days, recent activity | Go `/api/dashboard`, `/api/reports/flow`; Django `/api/audit-logs` |
 | Flow reports | Check-ins, completed, cancelled, average wait and consultation time per day, department and ESI level, for up to 92 days. CSV download | Go `/api/reports/flow` |
 | Audit log | Every sign-in, record access and patient-flow change, filterable and read-only. Viewing it is itself logged | Django `/api/audit-logs` |
+| Flow reports (additions) | Share seen within ESI target, where the time goes (wait / called-to-seen / consultation per department, slowest highlighted), busiest hours, day of week, clinician workload; **Download PDF** next to CSV | Go `/api/reports/flow` |
 | Departments | Add a department; close or reopen one (closing blocks new check-ins) | Django `/api/departments` |
 | Queue rules & holidays | ESI target times, long-wait and "turn is near" thresholds, appointment booking rules; holidays (no bookings) | Django `/api/clinic/queue-settings`, `/api/clinic/holidays` |
 | Opening hours | Bookable hours per weekday: a clinic default, and optional hours per department | Django `/api/clinic/hours` |

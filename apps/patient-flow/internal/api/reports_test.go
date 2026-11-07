@@ -32,15 +32,16 @@ func TestFlowReportAdminOnlyAndRange(t *testing.T) {
 
 func TestBuildFlowReport(t *testing.T) {
 	at := func(day, h, m int) *time.Time { v := time.Date(2026, 10, day, h, m, 0, 0, lagos); return &v }
+	ada := "Dr Ada"
 	rows := []store.ReportRow{
 		// Oct 11, OPD, ESI 3: waited 20, consulted 15
-		{DepartmentName: "OPD", ESI: 3, Status: flow.Completed, CheckedInAt: *at(11, 9, 0), CalledAt: at(11, 9, 20), StartedAt: at(11, 9, 25), CompletedAt: at(11, 9, 40)},
+		{DepartmentName: "OPD", ESI: 3, Status: flow.Completed, CheckedInAt: *at(11, 9, 0), CalledAt: at(11, 9, 20), StartedAt: at(11, 9, 25), CompletedAt: at(11, 9, 40), ClinicianName: &ada},
 		// Oct 11, Emergency, ESI 1: started directly after 2 min, still in progress
 		{DepartmentName: "Emergency", ESI: 1, Status: flow.InProgress, CheckedInAt: *at(11, 10, 0), StartedAt: at(11, 10, 2)},
 		// Oct 12, OPD, ESI 3: cancelled before being seen
 		{DepartmentName: "OPD", ESI: 3, Status: flow.Cancelled, CheckedInAt: *at(12, 23, 30)},
 	}
-	r := buildFlowReport(rows, time.Date(2026, 10, 10, 0, 0, 0, 0, lagos), 3, lagos)
+	r := buildFlowReport(rows, time.Date(2026, 10, 10, 0, 0, 0, 0, lagos), 3, lagos, [6]int{0, 0, 10, 30, 60, 120})
 	if r.From != "2026-10-10" || r.To != "2026-10-12" || len(r.Days) != 3 {
 		t.Fatalf("range: %+v", r)
 	}
@@ -59,6 +60,22 @@ func TestBuildFlowReport(t *testing.T) {
 	}
 	if len(r.ByESI) != 2 || r.ByESI[0].ESI != 1 || *r.ByESI[0].AvgWaitMinutes != 2 {
 		t.Errorf("byEsi: %+v", r.ByESI)
+	}
+	// ESI 3 seen after 20 min (target 30): in target. ESI 1 seen after 2 min (target 0): not.
+	if *d.SeenWithinTargetPercent != 50 || *d.AvgCallToStartMinutes != 5 {
+		t.Errorf("targets / call-to-start: %+v", d)
+	}
+	if len(r.ByHour) != 24 || r.ByHour[9].CheckIns != 1 || r.ByHour[23].Cancelled != 1 || r.ByHour[3].AvgWaitMinutes != nil {
+		t.Errorf("byHour: %+v", r.ByHour[9])
+	}
+	if len(r.ByWeekday) != 7 || r.ByWeekday[0].Day != "Sun" || r.ByWeekday[0].CheckIns != 2 || r.ByWeekday[1].CheckIns != 1 {
+		t.Errorf("byWeekday (Oct 11 2026 is a Sunday): %+v", r.ByWeekday[:2])
+	}
+	if len(r.ByClinician) != 1 || r.ByClinician[0].Clinician != "Dr Ada" || r.ByClinician[0].Completed != 1 {
+		t.Errorf("byClinician: %+v", r.ByClinician)
+	}
+	if r.Targets["2"] != 10 {
+		t.Errorf("targets used: %v", r.Targets)
 	}
 	raw, _ := json.Marshal(r.Days[1])
 	var flat map[string]any

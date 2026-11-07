@@ -14,6 +14,7 @@
     <button type="submit" class="btn">Show report</button>
     @if ($report)
         <a class="btn btn-secondary" href="{{ route('reports.csv', array_filter(['from' => $report['from'], 'to' => $report['to']])) }}">Download CSV</a>
+        <a class="btn btn-secondary" href="{{ route('reports.pdf', array_filter(['from' => $report['from'], 'to' => $report['to']])) }}">Download PDF</a>
     @endif
 </form>
 
@@ -28,6 +29,7 @@
         <div class="stat"><div class="stat-label">Cancelled</div><div class="stat-value">{{ $t['cancelled'] }}</div></div>
         <div class="stat"><div class="stat-label">Average wait</div><div class="stat-value">{{ isset($t['averageWaitMinutes']) ? $t['averageWaitMinutes'].' min' : '—' }}</div><div class="stat-hint">Check-in to called</div></div>
         <div class="stat"><div class="stat-label">Average consultation</div><div class="stat-value">{{ isset($t['averageConsultationMinutes']) ? $t['averageConsultationMinutes'].' min' : '—' }}</div></div>
+        <div class="stat"><div class="stat-label">Seen within ESI target</div><div class="stat-value">{{ isset($t['seenWithinTargetPercent']) ? $t['seenWithinTargetPercent'].'%' : '—' }}</div></div>
     </div>
 
     <section class="panel">
@@ -45,5 +47,7 @@
             @include('reports._stats_table', ['rows' => $report['byEsi'], 'key' => 'esi', 'label' => 'ESI'])
         </section>
     </div>
+
+    @include('reports._details', ['report' => $report])
 @endif
 @endsection

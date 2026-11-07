@@ -5,6 +5,7 @@ import { useApi } from "../../hooks/useApi";
 import { useQueueEvents } from "../../hooks/useQueueEvents";
 import { actionsFor, can } from "../../lib/roles";
 import TriageForm from "./TriageForm";
+import VisitRecord from "./VisitRecord";
 import { Empty, ErrorBox, EsiBadge, LiveBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals } from "../ui";
 
 export default function QueuePage() {
@@ -23,6 +24,7 @@ export default function QueuePage() {
   const deptName = (code) => (departments.data || []).find((d) => d.code === code)?.name ?? code;
   const [actionError, setActionError] = useState(null);
   const [triageFor, setTriageFor] = useState(null);
+  const [recordFor, setRecordFor] = useState(null);
   const [notice, setNotice] = useState(null);
 
   async function run(visitId, action) {
@@ -78,7 +80,8 @@ export default function QueuePage() {
             </thead>
             <tbody>
               {active.data.map((v) => (
-                <tr key={v.id}>
+                <Fragment key={v.id}>
+                <tr>
                   <td>
                     <strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div>
                     {v.chief_complaint && <div className="small">{v.chief_complaint}</div>}
@@ -88,8 +91,22 @@ export default function QueuePage() {
                   <td><StatusBadge status={v.status} /></td>
                   <td>{v.assigned_clinician_name || "—"}</td>
                   <td>{formatTime(v.started_at || v.called_at)}</td>
-                  <td className="actions">{buttons(v.id, v.status)}</td>
+                  <td className="actions">
+                    {can(user, "readRecord") && (
+                      <button type="button" className="btn btn-small btn-secondary" aria-expanded={recordFor === v.id}
+                        onClick={() => setRecordFor(recordFor === v.id ? null : v.id)}>
+                        {recordFor === v.id ? "Close record" : "Record"}
+                      </button>
+                    )}
+                    {buttons(v.id, v.status)}
+                  </td>
                 </tr>
+                {recordFor === v.id && (
+                  <tr className="row-form">
+                    <td colSpan={6} aria-label={`Clinical record for ${v.patient_name}`}><VisitRecord visitId={v.id} /></td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>

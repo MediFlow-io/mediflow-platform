@@ -12,13 +12,26 @@ class PatientSerializer(serializers.ModelSerializer):
     nextOfKin = serializers.CharField(source="next_of_kin", required=False, allow_blank=True)
     nextOfKinPhone = serializers.CharField(source="next_of_kin_phone", required=False, allow_blank=True)
     medicalHistory = serializers.CharField(source="medical_history", required=False, allow_blank=True)
+    paymentCategory = serializers.ChoiceField(source="payment_category", choices=Patient.PaymentCategory.choices, required=False)
+    insuranceNumber = serializers.CharField(source="insurance_number", required=False, allow_blank=True, max_length=40)
+    chronicConditions = serializers.ListField(source="chronic_conditions", child=serializers.CharField(max_length=60, allow_blank=True),
+                                              required=False, max_length=20)
     # Username of the login account (e.g. a student) allowed to view this record. "" unlinks.
     linkedAccount = serializers.CharField(required=False, allow_blank=True, write_only=True)
     linkedAccountName = serializers.CharField(source="user.username", read_only=True, default=None)
     class Meta:
         model = Patient
-        fields = ("id", "hospitalNumber", "fullName", "dateOfBirth", "sex", "phone", "address", "nextOfKin", "nextOfKinPhone", "allergies", "medicalHistory", "complaint", "diagnosis", "treatment", "notes", "linkedAccount", "linkedAccountName", "created_at", "updated_at")
+        fields = ("id", "hospitalNumber", "fullName", "dateOfBirth", "sex", "phone", "address", "nextOfKin", "nextOfKinPhone", "allergies", "medicalHistory", "paymentCategory", "insuranceNumber", "chronicConditions", "complaint", "diagnosis", "treatment", "notes", "linkedAccount", "linkedAccountName", "created_at", "updated_at")
         extra_kwargs = {"address": {"required": False}, "allergies": {"required": False}, "complaint": {"required": False}, "diagnosis": {"required": False}, "treatment": {"required": False}, "notes": {"required": False}}
+
+    def validate_chronicConditions(self, value):
+        # Trim, drop blanks and duplicates (case-insensitive), keep the order given.
+        seen, out = set(), []
+        for item in (v.strip() for v in value):
+            if item and item.lower() not in seen:
+                seen.add(item.lower())
+                out.append(item)
+        return out
 
     def validate_linkedAccount(self, value):
         if not value:
