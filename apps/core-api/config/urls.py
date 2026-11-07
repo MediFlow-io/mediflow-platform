@@ -16,6 +16,7 @@ from apps.accounts.views import (
     UserViewSet,
 )
 from apps.patients.views import DepartmentViewSet, PatientViewSet
+from apps.patients.claims import InsuranceClaimsView
 from apps.operations.views import HealthView
 from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, InsightsView, RiskScoreView, TriageSuggestView
@@ -68,6 +69,7 @@ urlpatterns = [
     path("api/clinic/shifts", clinic.ShiftListView.as_view()),
     path("api/clinic/shifts/<int:pk>", clinic.ShiftDetailView.as_view()),
     # EMR Lite (clinical records). Not under /api/visits, which is the Go service's.
+    path("api/claims/insurance", InsuranceClaimsView.as_view()),
     path("api/emr/visits/<int:visit_id>", emr.VisitRecordView.as_view()),
     path("api/emr/visits/<int:visit_id>/consultation", emr.ConsultationView.as_view()),
     path("api/emr/visits/<int:visit_id>/diagnoses", emr.DiagnosisCreateView.as_view()),

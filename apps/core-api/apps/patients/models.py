@@ -1,6 +1,7 @@
 import uuid
 from django.conf import settings
 from django.db import models
+from django.utils import timezone
 
 class Department(models.Model):
     name = models.CharField(max_length=100, unique=True)
@@ -30,6 +31,30 @@ class Patient(models.Model):
     # Database defaults too, so other services' inserts (Go, tests) keep working without these columns.
     payment_category = models.CharField(max_length=10, choices=PaymentCategory.choices, default=PaymentCategory.STUDENT, db_default=PaymentCategory.STUDENT)
     insurance_number = models.CharField(max_length=40, blank=True, default="", db_default="")
+
+    # Who the patient is: students and staff of the institution get their own fields and views.
+    class PatientType(models.TextChoices):
+        STUDENT = "student", "Student"; STAFF = "staff", "Staff"; VISITOR = "visitor", "Visitor"
+    patient_type = models.CharField(max_length=8, choices=PatientType.choices, default=PatientType.VISITOR, db_default=PatientType.VISITOR)
+    school_id = models.CharField(max_length=40, blank=True, default="", db_default="")  # matric number or staff ID
+    unit = models.CharField(max_length=100, blank=True, default="", db_default="")      # student's department / staff's unit
+    level = models.CharField(max_length=10, blank=True, default="", db_default="")      # students only, e.g. 300
+
+    # Health insurance (NHIS, run by the NHIA). The NHIA number is insurance_number above.
+    class InsuranceScheme(models.TextChoices):
+        NHIA = "nhia", "NHIA formal sector"; TISHIP = "tiship", "TISHIP (tertiary students)"
+        STATE = "state", "State health insurance"; HMO = "hmo", "Private HMO plan"
+    insurance_scheme = models.CharField(max_length=8, choices=InsuranceScheme.choices, blank=True, default="", db_default="")
+    hmo_name = models.CharField(max_length=100, blank=True, default="", db_default="")   # the HMO that pays claims
+    insurance_expires = models.DateField(null=True, blank=True)
+
+    def insurance_status(self, today=None):
+        """none (not insured), active, expired, or unknown (insured, no expiry date recorded)."""
+        if self.payment_category != self.PaymentCategory.INSURANCE:
+            return "none"
+        if self.insurance_expires is None:
+            return "unknown"
+        return "expired" if self.insurance_expires < (today or timezone.localdate()) else "active"
     # Long-term conditions as a list of short names, e.g. ["Asthma", "Sickle cell disease"].
     chronic_conditions = models.JSONField(default=list, blank=True, db_default=models.Value([], output_field=models.JSONField()))
     # Optional login account (e.g. a student) that may view this record via /api/me/health.

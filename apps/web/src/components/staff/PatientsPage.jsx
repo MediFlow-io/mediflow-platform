@@ -3,7 +3,7 @@ import { mediflowApi } from "../../api/client";
 import { useAuth } from "../../api/AuthContext";
 import { useApi } from "../../hooks/useApi";
 import { can } from "../../lib/roles";
-import { Empty, ErrorBox, Loading, PageHeader, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
+import { CoverBadge, Empty, ErrorBox, Loading, PageHeader, PatientTypeBadge, StatusBadge, formatDate, formatTime, formatVitals } from "../ui";
 import BookAppointmentForm from "./BookAppointmentForm";
 import CheckInForm from "./CheckInForm";
 import ClinicalHistory from "./ClinicalHistory";
@@ -35,7 +35,7 @@ export default function PatientsPage() {
 
   return (
     <>
-      <PageHeader title="Patients" subtitle="Search by name, hospital number or phone.">
+      <PageHeader title="Patients" subtitle="Search by name, hospital number, phone, matric / staff ID or NHIA number.">
         {can(user, "createPatients") && (
           <button type="button" className="btn" onClick={() => { setNotice(null); setPanel({ mode: "new" }); }}>
             Register patient
@@ -60,6 +60,7 @@ export default function PatientsPage() {
                     <strong>{p.fullName}</strong>
                     <span className="mono small">{p.hospitalNumber}</span>
                     <span className="small muted">{p.sex}{p.dateOfBirth ? ` · born ${formatDate(p.dateOfBirth)}` : ""} · {p.phone}</span>
+                    <span className="badge-row"><PatientTypeBadge type={p.patientType} /><CoverBadge status={p.insuranceStatus} /></span>
                   </button>
                 </li>
               ))}
@@ -104,8 +105,13 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
       onDone={(a) => onSaved(`Appointment booked for ${p.fullName}: ${a.date} at ${a.time} (${a.department_name}).`)} />;
   }
   if (mode === "checkin") {
-    return <CheckInForm patient={p} onCancel={() => onMode("view")}
-      onDone={(v) => onSaved(`${p.fullName} checked in to ${v.department_name} (ESI ${v.esi}).`)} />;
+    return (
+      <>
+        <CoverWarning patient={p} />
+        <CheckInForm patient={p} onCancel={() => onMode("view")}
+          onDone={(v) => onSaved(`${p.fullName} checked in to ${v.department_name} (ESI ${v.esi}).`)} />
+      </>
+    );
   }
 
   return (
@@ -114,6 +120,12 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
         <div>
           <h2>{p.fullName}</h2>
           <p className="mono small">{p.hospitalNumber}{p.linkedAccountName ? ` · linked to ${p.linkedAccountName}` : ""}</p>
+          <div className="badge-row">
+            <PatientTypeBadge type={p.patientType} />
+            {p.schoolId && <span className="small muted">{p.patientType === "staff" ? "Staff ID" : "Matric"} {p.schoolId}</span>}
+            {p.unit && <span className="small muted">· {p.unit}{p.level ? `, ${p.level} level` : ""}</span>}
+            <CoverBadge status={p.insuranceStatus} />
+          </div>
         </div>
         <div className="page-actions">
           {can(user, "checkIn") && !activeVisit && (
@@ -125,6 +137,7 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
           {canEdit && !editing && <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>Edit</button>}
         </div>
       </div>
+      <CoverWarning patient={p} />
       {activeVisit && (
         <div className="info-box">
           Currently <StatusBadge status={activeVisit.status} /> in {activeVisit.department_name} (ESI {activeVisit.esi}),
@@ -163,5 +176,16 @@ function PatientDetail({ id, mode, onMode, onSaved }) {
         </table>
       )}
     </>
+  );
+}
+
+/** Insured patient whose NHIS / HMO cover has lapsed: the front desk should check before treating on insurance. */
+function CoverWarning({ patient }) {
+  if (patient.insuranceStatus !== "expired") return null;
+  return (
+    <div className="warn-box" role="alert">
+      {patient.fullName}'s health insurance ({patient.hmoName || "NHIS"}) expired on {formatDate(patient.insuranceExpires)}.
+      Confirm renewed cover with the HMO, or change the payment category, before billing it as a claim.
+    </div>
   );
 }

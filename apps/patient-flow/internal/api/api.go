@@ -200,6 +200,7 @@ type visitJSON struct {
 	Patient               int64      `json:"patient"`
 	PatientName           string     `json:"patient_name"`
 	PatientHospitalNumber string     `json:"patient_hospital_number"`
+	PatientType           string     `json:"patient_type"`
 	Department            int64      `json:"department"`
 	DepartmentCode        string     `json:"department_code"`
 	DepartmentName        string     `json:"department_name"`
@@ -233,7 +234,7 @@ func (s *Server) stampPtr(t *time.Time) *string {
 func (s *Server) visitOut(v store.Visit) visitJSON {
 	return visitJSON{
 		ID: v.ID, VisitNumber: v.Number, Patient: v.PatientID, PatientName: v.PatientName,
-		PatientHospitalNumber: v.PatientHospitalNumber, Department: v.DepartmentID,
+		PatientHospitalNumber: v.PatientHospitalNumber, PatientType: v.PatientType, Department: v.DepartmentID,
 		DepartmentCode: v.DepartmentCode, DepartmentName: v.DepartmentName, ESI: v.ESI,
 		Status: string(v.Status), ArrivalMode: v.ArrivalMode, CheckedInAt: s.stamp(v.CheckedInAt),
 		CalledAt: s.stampPtr(v.CalledAt), StartedAt: s.stampPtr(v.StartedAt), CompletedAt: s.stampPtr(v.CompletedAt),

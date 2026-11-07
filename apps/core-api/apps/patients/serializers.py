@@ -14,6 +14,12 @@ class PatientSerializer(serializers.ModelSerializer):
     medicalHistory = serializers.CharField(source="medical_history", required=False, allow_blank=True)
     paymentCategory = serializers.ChoiceField(source="payment_category", choices=Patient.PaymentCategory.choices, required=False)
     insuranceNumber = serializers.CharField(source="insurance_number", required=False, allow_blank=True, max_length=40)
+    insuranceScheme = serializers.ChoiceField(source="insurance_scheme", choices=Patient.InsuranceScheme.choices, required=False, allow_blank=True)
+    hmoName = serializers.CharField(source="hmo_name", required=False, allow_blank=True, max_length=100)
+    insuranceExpires = serializers.DateField(source="insurance_expires", required=False, allow_null=True)
+    insuranceStatus = serializers.SerializerMethodField()
+    patientType = serializers.ChoiceField(source="patient_type", choices=Patient.PatientType.choices, required=False)
+    schoolId = serializers.CharField(source="school_id", required=False, allow_blank=True, max_length=40)
     chronicConditions = serializers.ListField(source="chronic_conditions", child=serializers.CharField(max_length=60, allow_blank=True),
                                               required=False, max_length=20)
     # Username of the login account (e.g. a student) allowed to view this record. "" unlinks.
@@ -21,8 +27,25 @@ class PatientSerializer(serializers.ModelSerializer):
     linkedAccountName = serializers.CharField(source="user.username", read_only=True, default=None)
     class Meta:
         model = Patient
-        fields = ("id", "hospitalNumber", "fullName", "dateOfBirth", "sex", "phone", "address", "nextOfKin", "nextOfKinPhone", "allergies", "medicalHistory", "paymentCategory", "insuranceNumber", "chronicConditions", "complaint", "diagnosis", "treatment", "notes", "linkedAccount", "linkedAccountName", "created_at", "updated_at")
-        extra_kwargs = {"address": {"required": False}, "allergies": {"required": False}, "complaint": {"required": False}, "diagnosis": {"required": False}, "treatment": {"required": False}, "notes": {"required": False}}
+        fields = ("id", "hospitalNumber", "fullName", "dateOfBirth", "sex", "phone", "address", "nextOfKin", "nextOfKinPhone", "allergies", "medicalHistory",
+                  "patientType", "schoolId", "unit", "level",
+                  "paymentCategory", "insuranceNumber", "insuranceScheme", "hmoName", "insuranceExpires", "insuranceStatus",
+                  "chronicConditions", "complaint", "diagnosis", "treatment", "notes", "linkedAccount", "linkedAccountName", "created_at", "updated_at")
+        extra_kwargs = {"address": {"required": False}, "allergies": {"required": False}, "complaint": {"required": False}, "diagnosis": {"required": False}, "treatment": {"required": False}, "notes": {"required": False},
+                        "unit": {"required": False, "allow_blank": True}, "level": {"required": False, "allow_blank": True}}
+
+    def get_insuranceStatus(self, patient):
+        return patient.insurance_status()
+
+    def validate(self, attrs):
+        # Look at the record as it will be after this change (a PATCH may send only some fields).
+        def value(field):
+            return attrs.get(field, getattr(self.instance, field, "") if self.instance else "")
+        if value("payment_category") == Patient.PaymentCategory.INSURANCE and not value("insurance_number"):
+            raise serializers.ValidationError({"insuranceNumber": "Enter the NHIA / HMO enrolment number for an insured patient."})
+        if value("patient_type") != Patient.PatientType.STUDENT and attrs.get("level"):
+            raise serializers.ValidationError({"level": "Only students have a level."})
+        return attrs
 
     def validate_chronicConditions(self, value):
         # Trim, drop blanks and duplicates (case-insensitive), keep the order given.

@@ -6,6 +6,13 @@ const EMPTY = {
   fullName: "", sex: "", phone: "", dateOfBirth: "", address: "", nextOfKin: "", nextOfKinPhone: "",
   allergies: "", medicalHistory: "", complaint: "", diagnosis: "", treatment: "", notes: "", linkedAccount: "",
   paymentCategory: "student", insuranceNumber: "", chronicConditions: "",
+  patientType: "visitor", schoolId: "", unit: "", level: "",
+  insuranceScheme: "", hmoName: "", insuranceExpires: "",
+};
+
+export const PATIENT_TYPES = { student: "Student", staff: "Staff", visitor: "Visitor" };
+export const INSURANCE_SCHEMES = {
+  tiship: "TISHIP (tertiary students)", nhia: "NHIA formal sector", state: "State health insurance", hmo: "Private HMO plan",
 };
 
 export const PAYMENT_CATEGORIES = {
@@ -17,6 +24,7 @@ const fromPatient = (p) => ({
   ...Object.fromEntries(Object.keys(EMPTY).map((k) => [k, p[k] ?? ""])),
   linkedAccount: p.linkedAccountName ?? "",
   paymentCategory: p.paymentCategory ?? "student",
+  patientType: p.patientType ?? "visitor",
   chronicConditions: (p.chronicConditions ?? []).join(", "),
 });
 
@@ -39,6 +47,8 @@ export default function PatientForm({ patient, readOnly = false, canLink = false
     const payload = {
       ...form,
       dateOfBirth: form.dateOfBirth || null,
+      insuranceExpires: form.insuranceExpires || null,
+      level: form.patientType === "student" ? form.level : "",
       chronicConditions: form.chronicConditions.split(",").map((c) => c.trim()).filter(Boolean),
     };
     if (!canLink || (patient && form.linkedAccount === (patient.linkedAccountName ?? ""))) delete payload.linkedAccount;
@@ -95,6 +105,47 @@ export default function PatientForm({ patient, readOnly = false, canLink = false
       </fieldset>
 
       <fieldset>
+        <legend>Who they are</legend>
+        <div className="field">
+          <label htmlFor="pf-patientType">Patient type</label>
+          <select {...field("patientType")}>
+            {Object.entries(PATIENT_TYPES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+        </div>
+        {form.patientType === "student" && (
+          <>
+            <div className="field">
+              <label htmlFor="pf-schoolId">Matric number</label>
+              <input {...field("schoolId")} maxLength={40} placeholder="SEN/22/9269" />
+            </div>
+            <div className="field">
+              <label htmlFor="pf-unit">Department / faculty</label>
+              <input {...field("unit")} maxLength={100} placeholder="Software Engineering" />
+            </div>
+            <div className="field">
+              <label htmlFor="pf-level">Level</label>
+              <select {...field("level")}>
+                <option value="">Select…</option>
+                {["100", "200", "300", "400", "500", "600", "700", "PG"].map((l) => <option key={l}>{l}</option>)}
+              </select>
+            </div>
+          </>
+        )}
+        {form.patientType === "staff" && (
+          <>
+            <div className="field">
+              <label htmlFor="pf-schoolId">Staff ID</label>
+              <input {...field("schoolId")} maxLength={40} />
+            </div>
+            <div className="field">
+              <label htmlFor="pf-unit">Department / unit</label>
+              <input {...field("unit")} maxLength={100} placeholder="Bursary" />
+            </div>
+          </>
+        )}
+      </fieldset>
+
+      <fieldset>
         <legend>Payment</legend>
         <div className="field">
           <label htmlFor="pf-paymentCategory">Payment category</label>
@@ -102,10 +153,29 @@ export default function PatientForm({ patient, readOnly = false, canLink = false
             {Object.entries(PAYMENT_CATEGORIES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
         </div>
-        <div className="field">
-          <label htmlFor="pf-insuranceNumber">Insurance number</label>
-          <input {...field("insuranceNumber")} maxLength={40} placeholder={form.paymentCategory === "insurance" ? "NHIA or HMO number" : ""} />
-        </div>
+        {form.paymentCategory === "insurance" && (
+          <>
+            <div className="field">
+              <label htmlFor="pf-insuranceScheme">Scheme (NHIS)</label>
+              <select {...field("insuranceScheme")}>
+                <option value="">Select…</option>
+                {Object.entries(INSURANCE_SCHEMES).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="pf-insuranceNumber">NHIA / HMO number *</label>
+              <input {...field("insuranceNumber")} required maxLength={40} />
+            </div>
+            <div className="field">
+              <label htmlFor="pf-hmoName">HMO</label>
+              <input {...field("hmoName")} maxLength={100} placeholder="The HMO that pays the claims" />
+            </div>
+            <div className="field">
+              <label htmlFor="pf-insuranceExpires">Cover expires</label>
+              <input type="date" {...field("insuranceExpires")} />
+            </div>
+          </>
+        )}
       </fieldset>
 
       <fieldset>

@@ -402,3 +402,14 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .portal-switch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--slate); }
 .portal-switch a { color: var(--teal); font-weight: 500; text-decoration: none; }
 .portal-switch a:hover { text-decoration: underline; }
+
+.badge.type-student { background: #e3ecfb; color: #234a8a; }
+.badge.type-staff { background: #efe5f7; color: #5b2d7a; }
+.badge.type-visitor { background: #eef1f0; color: var(--slate); }
+.badge.cover-active { background: #dff3ee; color: #12795f; }
+.badge.cover-expired { background: var(--error-bg); color: var(--error); }
+.badge.cover-unknown { background: #fff4e2; color: #6b4300; }
+.badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.warn-box { background: #fff4e2; color: #6b4300; border-radius: var(--radius); padding: 10px 14px; margin-bottom: 14px; font-size: 14px; }
+.filters { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 14px; }
+.filters label { display: grid; gap: 4px; margin: 0; }
