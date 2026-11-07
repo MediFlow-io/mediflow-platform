@@ -402,3 +402,13 @@ input:disabled, select:disabled, textarea:disabled { background: var(--paper); c
 .portal-switch { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--slate); }
 .portal-switch a { color: var(--teal); font-weight: 500; text-decoration: none; }
 .portal-switch a:hover { text-decoration: underline; }
+
+.check-status { border-radius: var(--radius); padding: 12px 14px; font-weight: 600; margin-bottom: 10px; }
+.check-status.status-good { background: #dff3ee; color: #0d5a47; }
+.check-status.status-watch { background: #fff4e2; color: #6b4300; }
+.check-status.status-see_clinic { background: var(--error-bg); color: var(--error); }
+.check-status.status-urgent { background: var(--error); color: #fff; }
+.check-form { display: grid; gap: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font: inherit; font-size: 13px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+.chip.on { background: var(--teal); border-color: var(--teal); color: #fff; }

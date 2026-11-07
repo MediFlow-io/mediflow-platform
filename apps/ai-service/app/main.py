@@ -14,7 +14,7 @@ from prometheus_client import CONTENT_TYPE_LATEST, Counter, Histogram, generate_
 
 from .config import load_settings
 from .first_aid import answer_question
-from . import flow_insights, news2
+from . import daily, flow_insights, news2
 from .schemas import (AskRequest, AskResponse, BottleneckRequest, BottleneckResponse, RiskScoreRequest,
                       RiskScoreResponse, TriageRequest, TriageResponse, WaitTimeRequest, WaitTimeResponse)
 from .triage import MODEL_VERSION, suggest_esi
@@ -109,3 +109,8 @@ def wait_time(body: WaitTimeRequest) -> WaitTimeResponse:
 @app.post("/ai/bottleneck", response_model=BottleneckResponse, dependencies=[Depends(require_internal_token)])
 def bottleneck(body: BottleneckRequest) -> BottleneckResponse:
     return BottleneckResponse(**flow_insights.bottlenecks(body))
+
+
+@app.post("/ai/daily-check", response_model=daily.DailyCheckResponse, dependencies=[Depends(require_internal_token)])
+def daily_check(body: daily.DailyCheckRequest) -> daily.DailyCheckResponse:
+    return daily.check(body)

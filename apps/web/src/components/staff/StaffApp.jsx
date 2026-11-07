@@ -13,6 +13,7 @@ import NotificationsPage from "./NotificationsPage";
 import PharmacyPage from "./PharmacyPage";
 import QueuePage from "./QueuePage";
 import StaffPage from "./StaffPage";
+import MyHealthPage from "./MyHealthPage";
 
 const PAGES = [
   { id: "dashboard", label: "Dashboard", permission: "dashboard", Component: DashboardPage },
@@ -22,6 +23,7 @@ const PAGES = [
   { id: "pharmacy", label: "Pharmacy", permission: "pharmacy", Component: PharmacyPage },
   { id: "staff", label: "Staff", permission: "manageStaff", Component: StaffPage },
   { id: "notifications", label: "Notifications", permission: null, Component: NotificationsPage },
+  { id: "my-health", label: "My health", permission: null, Component: MyHealthPage },
   { id: "account", label: "My account", permission: null, Component: AccountPage },
 ];
 
