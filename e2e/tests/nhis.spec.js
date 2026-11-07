@@ -11,7 +11,7 @@ test("student patient on lapsed NHIS cover: category shown, warning before check
   } });
 
   await signInStaff(page, "admin", "admin123");
-  await page.getByRole("button", { name: "Patients" }).click();
+  await page.getByRole("button", { name: "Patients", exact: true }).click();
   await page.getByLabel("Search patients").fill(name);
   await page.getByRole("button", { name: new RegExp(name) }).click();
   await expect(page.getByText("NHIS cover expired").first()).toBeVisible();
