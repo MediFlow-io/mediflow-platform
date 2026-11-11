@@ -242,6 +242,7 @@ export const mediflowApi = {
   resetMfa: (id) => request(`/api/users/${id}/reset-mfa`, { method: "POST" }),
   triageSuggestion: (payload) => request("/api/ai/triage", { method: "POST", body: payload }),
   riskScore: (payload) => request("/api/ai/risk-score", { method: "POST", body: payload }),
+  drugSuggestions: (payload) => request("/api/ai/drug-suggestions", { method: "POST", body: payload }),
   appointments: (params) => request(`/api/appointments${qs(params)}`),
   bookAppointment: (payload) => request("/api/appointments", { method: "POST", body: payload }),
   appointmentAction: (id, action, body = {}) => request(`/api/appointments/${id}/${action}`, { method: "POST", body }),

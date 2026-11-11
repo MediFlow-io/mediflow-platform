@@ -148,6 +148,7 @@ function Prescriptions({ visitId, items, canWrite, onSaved }) {
           </tbody>
         </table>
       )}
+      {canWrite && <DrugSuggestions visitId={visitId} onUse={setForm} />}
       {canWrite && (
         <form className="inline-form" onSubmit={(e) => { e.preventDefault(); save(() => mediflowApi.addPrescription(visitId, form), () => setForm(NEW_RX)); }}>
           <label className="grow">Drug<input value={form.drug} onChange={set("drug")} maxLength={120} required /></label>
@@ -228,5 +229,70 @@ function AdmissionBlock({ visitId, admission, canWrite, onSaved }) {
       )}
       <ErrorBox error={error} />
     </section>
+  );
+}
+
+// The AI service names routes more precisely than the prescription form offers.
+const ROUTE = { oral: "oral", inhaled: "inhaled", eye: "topical", skin: "topical" };
+
+/** Drug suggestions for this visit's diagnoses. "Use" only fills the form: the doctor still prescribes. */
+function DrugSuggestions({ visitId, onUse }) {
+  const [extra, setExtra] = useState("");
+  const [pregnant, setPregnant] = useState(false);
+  const [result, setResult] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function ask(e) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      setResult(await mediflowApi.drugSuggestions({ visit: visitId, diagnoses: extra.trim() ? [extra.trim()] : [], pregnant }));
+    } catch (err) {
+      setError(err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="ai-suggest">
+      <form className="inline-form" onSubmit={ask}>
+        <label className="grow">Diagnosis not saved yet? (optional)
+          <input value={extra} onChange={(e) => setExtra(e.target.value)} maxLength={200} placeholder="e.g. malaria" />
+        </label>
+        <label className="inline-check"><input type="checkbox" checked={pregnant} onChange={(e) => setPregnant(e.target.checked)} /> Pregnant</label>
+        <button type="submit" className="btn btn-small btn-secondary" disabled={busy}>{busy ? "Thinking…" : "Suggest drugs (AI)"}</button>
+      </form>
+      <ErrorBox error={error} />
+      {result && (
+        <div className="ai-result" aria-live="polite">
+          {result.suggestions.length > 0 && (
+            <ul className="plain-list">
+              {result.suggestions.map((s) => (
+                <li key={s.drug} className="ai-drug">
+                  <div>
+                    <strong>{s.drug}</strong> {s.dose}, {s.route}, {s.frequency}, {s.duration}
+                    {!s.first_line && <span className="small muted"> · alternative</span>}
+                    <div className="small muted">For {s.for_condition}. {s.instructions}</div>
+                    {s.cautions.map((c) => <div key={c} className="small warn-text">⚠ {c}</div>)}
+                  </div>
+                  <button type="button" className="btn btn-small" onClick={() => onUse({
+                    drug: s.drug, dose: s.dose, route: ROUTE[s.route] ?? "other", frequency: s.frequency.slice(0, 60),
+                    duration: s.duration.slice(0, 60), instructions: s.instructions.slice(0, 300),
+                  })}>Use this</button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {result.excluded.length > 0 && (
+            <p className="small">Left out: {result.excluded.map((x) => `${x.drug} (${x.reason})`).join("; ")}</p>
+          )}
+          {result.notes.map((n) => <p key={n} className="small muted">{n}</p>)}
+          <p className="small muted"><em>{result.disclaimer}</em></p>
+        </div>
+      )}
+    </div>
   );
 }
