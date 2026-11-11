@@ -6,7 +6,7 @@ import { useQueueEvents } from "../../hooks/useQueueEvents";
 import { actionsFor, can } from "../../lib/roles";
 import TriageForm from "./TriageForm";
 import VisitRecord from "./VisitRecord";
-import { Empty, ErrorBox, EsiBadge, LiveBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals } from "../ui";
+import { Empty, ErrorBox, EsiBadge, LiveBadge, Loading, PageHeader, StatusBadge, formatTime, formatVitals, PatientTypeBadge } from "../ui";
 
 export default function QueuePage() {
   const { user } = useAuth();
@@ -83,7 +83,7 @@ export default function QueuePage() {
                 <Fragment key={v.id}>
                 <tr>
                   <td>
-                    <strong>{v.patient_name}</strong><div className="mono small">{v.patient_hospital_number}</div>
+                    <strong>{v.patient_name}</strong> {v.patient_type && v.patient_type !== "visitor" && <PatientTypeBadge type={v.patient_type} />}<div className="mono small">{v.patient_hospital_number}</div>
                     {v.chief_complaint && <div className="small">{v.chief_complaint}</div>}
                     {formatVitals(v) && <div className="small muted">{formatVitals(v)}</div>}
                   </td>

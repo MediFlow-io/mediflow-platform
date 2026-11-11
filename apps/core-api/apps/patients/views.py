@@ -22,7 +22,8 @@ class PatientViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         query = self.request.query_params.get("search", "").strip()
         patients = Patient.objects.select_related("user").order_by("-created_at")
-        if query: patients = patients.filter(Q(full_name__icontains=query) | Q(hospital_number__icontains=query) | Q(phone__icontains=query))
+        if query: patients = patients.filter(Q(full_name__icontains=query) | Q(hospital_number__icontains=query) | Q(phone__icontains=query)
+                                                  | Q(school_id__icontains=query) | Q(insurance_number__icontains=query))
         return patients
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)

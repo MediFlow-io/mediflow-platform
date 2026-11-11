@@ -14,6 +14,7 @@ const sets = {
   pharmacy: ["pharmacy"],
   manageStaff: ["admin"],
   manageAppointments: ["admin", "doctor", "nurse", "reception"],
+  insuranceClaims: ["admin", "reception"],
   dashboard: ["admin", "doctor", "nurse", "reception", "lab", "pharmacy", "it"],
 };
 

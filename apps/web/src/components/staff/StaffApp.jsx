@@ -11,6 +11,7 @@ import PatientsPage from "./PatientsPage";
 import AppointmentsPage from "./AppointmentsPage";
 import NotificationsPage from "./NotificationsPage";
 import PharmacyPage from "./PharmacyPage";
+import ClaimsPage from "./ClaimsPage";
 import QueuePage from "./QueuePage";
 import StaffPage from "./StaffPage";
 
@@ -20,6 +21,7 @@ const PAGES = [
   { id: "appointments", label: "Appointments", permission: "manageAppointments", Component: AppointmentsPage },
   { id: "patients", label: "Patients", permission: "readPatients", Component: PatientsPage },
   { id: "pharmacy", label: "Pharmacy", permission: "pharmacy", Component: PharmacyPage },
+  { id: "claims", label: "Insurance claims", permission: "insuranceClaims", Component: ClaimsPage },
   { id: "staff", label: "Staff", permission: "manageStaff", Component: StaffPage },
   { id: "notifications", label: "Notifications", permission: null, Component: NotificationsPage },
   { id: "account", label: "My account", permission: null, Component: AccountPage },

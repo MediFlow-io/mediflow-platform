@@ -265,4 +265,13 @@ export const mediflowApi = {
   notificationPreferences: () => request("/api/notifications/preferences"),
   setNotificationPreferences: (body) => request("/api/notifications/preferences", { method: "PUT", body }),
   markAllNotificationsRead: () => request("/api/notifications/read-all", { method: "POST" }),
+  insuranceClaims: (params) => request(`/api/claims/insurance${qs(params)}`),
+  // The same claims as a CSV file, for the HMO.
+  insuranceClaimsCsv: async (params) => {
+    const token = getAccessToken();
+    const res = await fetch(`${API_BASE_URL}/api/claims/insurance${qs({ ...params, download: "csv" })}`,
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!res.ok) throw new ApiError(`Download failed (${res.status}).`, res.status, null);
+    return res.blob();
+  },
 };

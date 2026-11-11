@@ -73,3 +73,19 @@ export const formatTime = (value) =>
 
 export const formatDate = (value) =>
   value ? new Date(value).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" }) : "—";
+
+const TYPE_LABEL = { student: "Student", staff: "Staff", visitor: "Visitor" };
+
+/** Who the patient is: student and staff patients each have their own fields. */
+export function PatientTypeBadge({ type }) {
+  if (!type) return null;
+  return <span className={`badge type-${type}`}>{TYPE_LABEL[type] ?? type}</span>;
+}
+
+const COVER_LABEL = { active: "NHIS cover active", expired: "NHIS cover expired", unknown: "Insured: expiry not recorded" };
+
+/** Health-insurance cover (NHIS / HMO). Nothing for patients who aren't insured. */
+export function CoverBadge({ status }) {
+  if (!COVER_LABEL[status]) return null;
+  return <span className={`badge cover-${status}`}>{COVER_LABEL[status]}</span>;
+}

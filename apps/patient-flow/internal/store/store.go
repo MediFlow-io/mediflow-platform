@@ -57,6 +57,7 @@ type Visit struct {
 	PatientID             int64
 	PatientName           string
 	PatientHospitalNumber string
+	PatientType           string // student, staff or visitor
 	DepartmentID          int64
 	DepartmentCode        string
 	DepartmentName        string
@@ -125,7 +126,7 @@ func (s *Store) UserByID(ctx context.Context, id int64) (User, error) {
 }
 
 const visitSelect = `
-SELECT v.id, v.visit_number, v.patient_id, p.full_name, p.hospital_number,
+SELECT v.id, v.visit_number, v.patient_id, p.full_name, p.hospital_number, p.patient_type,
        v.department_id, d.code, d.name, v.esi, v.status, v.arrival_mode,
        v.checked_in_at, v.called_at, v.started_at, v.completed_at, v.assigned_clinician_id,
        CASE WHEN u.id IS NULL THEN NULL ELSE COALESCE(NULLIF(u.display_name, ''), u.username) END,
@@ -138,7 +139,7 @@ LEFT JOIN accounts_user u ON u.id = v.assigned_clinician_id`
 func scanVisit(row pgx.Row) (Visit, error) {
 	var v Visit
 	var status string
-	err := row.Scan(&v.ID, &v.Number, &v.PatientID, &v.PatientName, &v.PatientHospitalNumber,
+	err := row.Scan(&v.ID, &v.Number, &v.PatientID, &v.PatientName, &v.PatientHospitalNumber, &v.PatientType,
 		&v.DepartmentID, &v.DepartmentCode, &v.DepartmentName, &v.ESI, &status, &v.ArrivalMode,
 		&v.CheckedInAt, &v.CalledAt, &v.StartedAt, &v.CompletedAt, &v.ClinicianID, &v.ClinicianName,
 		&v.Vitals.Complaint, &v.Vitals.PainScore, &v.Vitals.HeartRate, &v.Vitals.RespRate, &v.Vitals.SpO2,
