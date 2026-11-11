@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X } from "lucide-react";
+import { LayoutGrid, CalendarDays, ClipboardList, Syringe, Pill, Bell, Check, ShieldAlert, Phone, LogOut, Info, Plus, X, HeartPulse } from "lucide-react";
+import DailyCheck from "./DailyCheck";
 import {
   cancelAppointment, getDepartments, getMe, getMyAppointments, getMyHealth, getMyMedications, getMyQueue, getNotificationPreferences,
   getNotifications, isSignedIn, setNotificationPreferences,
@@ -30,6 +31,7 @@ const time = (d) => new Date(d).toLocaleTimeString("en-GB", { hour: "2-digit", m
 
 const nav = [
   { id: "home", label: "Today", icon: LayoutGrid },
+  { id: "check", label: "Daily check", icon: HeartPulse },
   { id: "appts", label: "Appointments", icon: CalendarDays },
   { id: "history", label: "Visit history", icon: ClipboardList },
   { id: "vaccines", label: "Vaccines", icon: Syringe },
@@ -714,6 +716,7 @@ function Dashboard({ onSignedOut }) {
         {tab === "vaccines" && <NotAvailable title="Vaccines">Vaccination records aren't kept in MediFlow yet. Ask the health centre for your immunisation card.</NotAvailable>}
         {tab === "notifications" && <Notifications data={notes} failed={notesFailed} onOpen={openNote} onReadAll={readAll} />}
         {tab === "meds" && <Medications />}
+        {tab === "check" && <DailyCheck />}
       </div>
     </div>
   );

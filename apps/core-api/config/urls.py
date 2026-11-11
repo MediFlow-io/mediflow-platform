@@ -20,6 +20,7 @@ from apps.operations.views import HealthView
 from apps.operations.audit_api import AuditLogListView
 from apps.ai.views import AskView, InsightsView, RiskScoreView, TriageSuggestView
 from apps.clinic import views as clinic
+from apps.wellbeing.views import DailyCheckView
 from apps.emr import views as emr
 from apps.accounts import mfa_views
 
@@ -37,6 +38,7 @@ urlpatterns = [
     path("api/logout", LogoutView.as_view()), path("api/logout/", LogoutView.as_view()),
     path("api/register", RegisterView.as_view()), path("api/register/", RegisterView.as_view()),
     path("api/me", MeView.as_view()), path("api/me/", MeView.as_view()),
+    path("api/me/daily-check", DailyCheckView.as_view()),
     path("api/me/health", MyHealthView.as_view()), path("api/me/health/", MyHealthView.as_view()),
     path("api/auth/login", LoginView.as_view()), path("api/auth/login/", LoginView.as_view()),
     path("api/auth/logout", LogoutView.as_view()), path("api/auth/logout/", LogoutView.as_view()),
